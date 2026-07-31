@@ -806,6 +806,8 @@ async def insider_search(request: Request) -> HTMLResponse:
             major_exchanges_only=major_only,
         )
         trades = _format_insider_trade_rows(df)
+        # Enrich with cached prices only (don't hit Schwab on every search)
+        trades = insider.enrich_trades_with_prices(trades, con)
     finally:
         con.close()
 

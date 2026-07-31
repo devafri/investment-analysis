@@ -46,15 +46,17 @@
           </td>
           <td class="font-mono tabular-nums text-xs text-surface-700">{{ t.shares }}</td>
           <td class="font-mono tabular-nums text-xs text-surface-700">{{ t.price }}</td>
+          {% set cp = t.get('current_price') %}
+          {% set gl = t.get('gain_loss_pct') %}
           <td class="font-mono tabular-nums text-xs text-surface-500">
-            {% if t.current_price %}${{ "%.2f"|format(t.current_price) }}{% else %}—{% endif %}
+            {% if cp %}${{ "%.2f"|format(cp) }}{% else %}—{% endif %}
           </td>
           <td class="font-mono tabular-nums text-xs
-              {% if t.gain_loss_pct is not none and t.gain_loss_pct > 0 %}text-positive-600 font-semibold
-              {% elif t.gain_loss_pct is not none and t.gain_loss_pct < 0 %}text-negative-600
+              {% if gl is not none and gl > 0 %}text-positive-600 font-semibold
+              {% elif gl is not none and gl < 0 %}text-negative-600
               {% else %}text-surface-400{% endif %}">
-            {% if t.gain_loss_pct is not none %}
-              {{ "%+.1f"|format(t.gain_loss_pct) }}%
+            {% if gl is not none %}
+              {{ "%+.1f"|format(gl) }}%
             {% else %}—{% endif %}
           </td>
           <td>
