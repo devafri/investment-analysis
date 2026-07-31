@@ -81,7 +81,8 @@
         </label>
         <input id="schwab-client-id" name="client_id" type="text"
                class="input-text font-mono text-xs"
-               placeholder="Your Schwab app key" />
+               value="{{ schwab_client_id }}"
+               placeholder="Your Schwab app key (or set SCHWAB_CLIENT_ID in .env)" />
       </div>
       <div>
         <label class="block text-[12px] font-medium text-surface-600 mb-1" for="schwab-client-secret">
@@ -89,7 +90,8 @@
         </label>
         <input id="schwab-client-secret" name="client_secret" type="password"
                class="input-text font-mono text-xs"
-               placeholder="Your Schwab app secret" />
+               value="{{ schwab_client_secret }}"
+               placeholder="Your Schwab app secret (or set SCHWAB_CLIENT_SECRET in .env)" />
       </div>
       <div>
         <label class="block text-[12px] font-medium text-surface-600 mb-1" for="schwab-redirect-uri">
@@ -97,12 +99,21 @@
         </label>
         <input id="schwab-redirect-uri" name="redirect_uri" type="text"
                class="input-text font-mono text-xs"
-               value="http://127.0.0.1:8000/schwab/callback"
+               value="{{ schwab_redirect_uri }}"
                placeholder="http://127.0.0.1:8000/schwab/callback" />
         <p class="mt-1 text-[11px] text-surface-400">
-          Make sure this exact URI is registered in your Schwab app settings.
+          Leave fields empty to read from <code class="text-xs bg-surface-100 px-1 rounded">.env</code>.
         </p>
       </div>
+      <p class="text-[11px] text-surface-400 mb-2">
+        {% if schwab_client_id %}
+        ✓ Credentials loaded from <code class="text-xs bg-surface-100 px-1 rounded">.env</code> — click Connect to authorize.
+        {% else %}
+        Set <code class="text-xs bg-surface-100 px-1 rounded">SCHWAB_CLIENT_ID</code> and
+        <code class="text-xs bg-surface-100 px-1 rounded">SCHWAB_CLIENT_SECRET</code> in
+        <code class="text-xs bg-surface-100 px-1 rounded">.env</code> to skip this form.
+        {% endif %}
+      </p>
       <button type="submit" class="btn btn--primary btn--sm">
         Connect to Schwab
       </button>

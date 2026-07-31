@@ -4,6 +4,7 @@ data_ingestion.py, formatting.py, pipeline_imports.py) -- this file just wires
 HTTP requests to that logic and renders templates.
 """
 
+import os
 import threading
 import time
 from pathlib import Path
@@ -241,7 +242,11 @@ async def setup_page(request: Request) -> HTMLResponse:
         request,
         "setup.html",
         {"error": None, "data_dir": data_dir, "form_type": "", "available_files": available_files,
-         "schwab_status": get_connection_status(), "summary": summary, "ingest_log": ingest_log},
+         "schwab_status": get_connection_status(), "summary": summary, "ingest_log": ingest_log,
+         "schwab_client_id": os.environ.get("SCHWAB_CLIENT_ID", ""),
+         "schwab_client_secret": os.environ.get("SCHWAB_CLIENT_SECRET", ""),
+         "schwab_redirect_uri": os.environ.get("SCHWAB_REDIRECT_URI",
+                                               "http://127.0.0.1:8000/schwab/callback")},
     )
 
 
@@ -953,15 +958,29 @@ async def watchlist_toggle(cik: str):
 @app.post("/schwab/authorize")
 async def schwab_authorize(
     request: Request,
-    client_id: str = Form(...),
-    client_secret: str = Form(...),
-    redirect_uri: str = Form(default="http://127.0.0.1:8000/schwab/callback"),
+    client_id: str = Form(default=""),
+    client_secret: str = Form(default=""),
+    redirect_uri: str = Form(default=""),
 ):
     """Store the user's Schwab app credentials and redirect them to Schwab's
-    OAuth authorization page.  Schwab will redirect back to *redirect_uri*
-    with an authorization code, which /schwab/callback handles."""
-    state = save_pending_credentials(client_id, client_secret, redirect_uri)
-    auth_url = build_authorization_url(client_id, redirect_uri)
+    OAuth authorization page.  Falls back to SCHWAB_CLIENT_ID /
+    SCHWAB_CLIENT_SECRET / SCHWAB_REDIRECT_URI from the .env file when
+    form fields are left empty."""
+    cid = client_id.strip() or os.environ.get("SCHWAB_CLIENT_ID", "")
+    csec = client_secret.strip() or os.environ.get("SCHWAB_CLIENT_SECRET", "")
+    ruri = redirect_uri.strip() or os.environ.get(
+        "SCHWAB_REDIRECT_URI", "http://127.0.0.1:8000/schwab/callback",
+    )
+    if not cid or not csec:
+        return templates.TemplateResponse(
+            request, "_schwab_result.html",
+            {"request": request, "success": False,
+             "message": "Client ID and Client Secret are required. "
+                        "Set SCHWAB_CLIENT_ID and SCHWAB_CLIENT_SECRET in .env "
+                        "or enter them in the form."},
+        )
+    state = save_pending_credentials(cid, csec, ruri)
+    auth_url = build_authorization_url(cid, ruri)
     # Append state so we can look up credentials on callback
     separator = "&" if "?" in auth_url else "?"
     return RedirectResponse(f"{auth_url}{separator}state={state}", status_code=302)
