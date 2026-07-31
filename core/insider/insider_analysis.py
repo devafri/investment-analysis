@@ -901,8 +901,11 @@ def get_aggregate_summary(con) -> dict:
 
 
 def _load_exchange_ciks(con) -> set:
-    """Return the set of CIKs listed on NYSE or Nasdaq.  Uses the cached
-    exchange_map.json (refreshed daily by the exchange_filter module)."""
+    """Return the set of CIKs listed on NYSE or Nasdaq, normalised to
+    bare-digits (no leading zeros) so they match regardless of padding.
+
+    Uses the cached exchange_map.json (refreshed daily by the
+    exchange_filter module)."""
     try:
         from core.fundamentals.exchange_filter import (
             load_exchange_map, is_major_exchange,
@@ -910,7 +913,11 @@ def _load_exchange_ciks(con) -> set:
         exchange_map, _ = load_exchange_map()
         if not exchange_map:
             return set()
-        return {cik for cik, exch in exchange_map.items()
+
+        def _bare(cik: str) -> str:
+            return str(cik).strip().lstrip("0") or "0"
+
+        return {_bare(cik) for cik, exch in exchange_map.items()
                 if is_major_exchange(exch)}
     except Exception:
         return set()
@@ -934,7 +941,7 @@ def search_insider_trades(
         where.append(
             "(LOWER(it.issuer_trading_symbol) LIKE ? "
             "OR LOWER(it.rpt_owner_name) LIKE ? "
-            "OR CAST(it.issuer_cik AS VARCHAR) = ?)"
+            "OR LTRIM(CAST(it.issuer_cik AS VARCHAR), '0') = ?)"
         )
         q = f"%{search.lower()}%"
         params.extend([q, q, search.strip()])
@@ -952,7 +959,7 @@ def search_insider_trades(
         if exchange_ciks:
             placeholders = ", ".join(["?"] * len(exchange_ciks))
             where.append(
-                f"CAST(it.issuer_cik AS VARCHAR) IN ({placeholders})"
+                f"LTRIM(CAST(it.issuer_cik AS VARCHAR), '0') IN ({placeholders})"
             )
             params.extend(list(exchange_ciks))
 
@@ -993,7 +1000,7 @@ def get_top_companies(
         if exchange_ciks:
             placeholders = ", ".join(["?"] * len(exchange_ciks))
             exchange_where = (
-                f"WHERE CAST(it.issuer_cik AS VARCHAR) IN ({placeholders})"
+                f"WHERE LTRIM(CAST(it.issuer_cik AS VARCHAR), '0') IN ({placeholders})"
             )
 
     params = list(_load_exchange_ciks(con)) if major_exchanges_only else []
