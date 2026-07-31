@@ -1,5 +1,21 @@
 {# HTMX partial — trade rows for /insider/search.  Replaces #insider-results. #}
 
+{# Build a base query string for sort/pagination links #}
+{% set major_flag = 'on' if (major_exchanges_only is not defined or major_exchanges_only) else '0' %}
+{% set base_qs = 'search=' ~ (search|default('')) ~ '&trade_type=' ~ (trade_type|default('')) ~ '&code=' ~ (code|default('')) ~ '&major_exchanges_only=' ~ major_flag %}
+
+{% macro sort_link(col, label) %}
+{% set next_order = 'asc' if (sort == col and order == 'desc') else 'desc' %}
+<a class="hover:text-sky-700 inline-flex items-center gap-1 no-underline"
+   hx-get="/insider/search?{{ base_qs }}&sort={{ col }}&order={{ next_order }}"
+   hx-target="#insider-results" hx-swap="innerHTML">
+  {{ label }}
+  {% if sort == col %}
+    <span class="text-[10px] text-surface-400">{{ '▲' if order == 'asc' else '▼' }}</span>
+  {% endif %}
+</a>
+{% endmacro %}
+
 {% if not trades %}
 <div class="card">
   <p class="text-sm text-surface-500 italic text-center py-6">
@@ -12,16 +28,16 @@
     <table class="data-table min-w-[800px]">
       <thead>
         <tr>
-          <th>Date</th>
-          <th>Company</th>
-          <th>Insider</th>
-          <th>Role</th>
-          <th>Dir</th>
-          <th>Shares</th>
-          <th>Trade $</th>
+          <th>{{ sort_link("date", "Date") }}</th>
+          <th>{{ sort_link("company", "Company") }}</th>
+          <th>{{ sort_link("insider", "Insider") }}</th>
+          <th>{{ sort_link("role", "Role") }}</th>
+          <th>{{ sort_link("code", "Dir") }}</th>
+          <th>{{ sort_link("shares", "Shares") }}</th>
+          <th>{{ sort_link("price", "Trade $") }}</th>
           <th>Now $</th>
           <th title="Absolute if held < 1 year, annualized CAGR if ≥ 1 year">Gain/Loss</th>
-          <th>Classification</th>
+          <th>{{ sort_link("type", "Class") }}</th>
         </tr>
       </thead>
       <tbody>
@@ -85,13 +101,13 @@
   <div class="flex gap-1">
     {% if page > 1 %}
     <button class="btn btn--secondary btn--sm"
-            hx-get="/insider/search?search={{ search }}&trade_type={{ trade_type }}&code={{ code }}&major_exchanges_only={{ 'on' if (major_exchanges_only is not defined or major_exchanges_only) else '0' }}&page={{ page - 1 }}"
+            hx-get="/insider/search?{{ base_qs }}&sort={{ sort|default('date') }}&order={{ order|default('desc') }}&page={{ page - 1 }}"
             hx-target="#insider-results" hx-swap="innerHTML">
       ← Prev
     </button>
     {% endif %}
     <button class="btn btn--secondary btn--sm"
-            hx-get="/insider/search?search={{ search }}&trade_type={{ trade_type }}&code={{ code }}&major_exchanges_only={{ 'on' if (major_exchanges_only is not defined or major_exchanges_only) else '0' }}&page={{ page + 1 }}"
+            hx-get="/insider/search?{{ base_qs }}&sort={{ sort|default('date') }}&order={{ order|default('desc') }}&page={{ page + 1 }}"
             hx-target="#insider-results" hx-swap="innerHTML">
       Next →
     </button>

@@ -923,6 +923,20 @@ def _load_exchange_ciks(con) -> set:
         return set()
 
 
+# Columns allowed in ORDER BY — whitelist to prevent SQL injection.
+_SORTABLE_COLUMNS = {
+    "date": "it.trans_date",
+    "company": "company_name",
+    "ticker": "it.issuer_trading_symbol",
+    "insider": "it.rpt_owner_name",
+    "role": "it.rpt_owner_relationship",
+    "code": "it.transaction_code",
+    "shares": "it.trans_shares",
+    "price": "it.trans_price_per_share",
+    "type": "it.trade_type",
+}
+
+
 def search_insider_trades(
     con,
     search: str = "",
@@ -931,6 +945,8 @@ def search_insider_trades(
     limit: int = 100,
     offset: int = 0,
     major_exchanges_only: bool = True,
+    sort: str = "date",
+    order: str = "desc",
 ) -> pd.DataFrame:
     """Search insider trades across all companies with optional filters.
     Returns trades joined with company names from fundamentals_history."""
@@ -974,7 +990,7 @@ def search_insider_trades(
             FROM fundamentals_history
         ) fh ON CAST(fh.cik AS VARCHAR) = it.issuer_cik
         {where_clause}
-        ORDER BY it.trans_date DESC
+        ORDER BY {_SORTABLE_COLUMNS.get(sort, 'it.trans_date')} { 'ASC' if order == 'asc' else 'DESC' }
         LIMIT ? OFFSET ?
     """
     params.extend([limit, offset])

@@ -744,7 +744,8 @@ async def insider_page(request: Request) -> HTMLResponse:
                 request, "insider.html",
                 {"request": request, "summary": None, "top_companies": [],
                  "trades": [], "schwab_status": get_connection_status(),
-                 "search": "", "trade_type": "", "code": "", "page": 1,
+                 "search": "", "trade_type": "", "code": "", "sort": "date",
+                 "order": "desc", "page": 1,
                  "error": "No insider trading data has been ingested yet. "
                           "Place SEC EDGAR insider ZIP files (containing "
                           "NONDERIV_TRANS.txt, SUBMISSION.txt, "
@@ -773,6 +774,7 @@ async def insider_page(request: Request) -> HTMLResponse:
              "trades": trades, "performance": perf,
              "schwab_status": get_connection_status(),
              "error": None, "search": "", "trade_type": "", "code": "",
+             "sort": "date", "order": "desc",
              "page": 1, "major_exchanges_only": major_only},
         )
     except Exception as exc:
@@ -792,6 +794,8 @@ async def insider_search(request: Request) -> HTMLResponse:
     search = request.query_params.get("search", "")
     trade_type = request.query_params.get("trade_type", "")
     code = request.query_params.get("code", "")
+    sort = request.query_params.get("sort", "date")
+    order = request.query_params.get("order", "desc")
     major_only = request.query_params.get("major_exchanges_only", "1")
     major_only = major_only in {"1", "on", "true", ""}
     page = max(1, int(request.query_params.get("page", 1)))
@@ -809,6 +813,7 @@ async def insider_search(request: Request) -> HTMLResponse:
             con, search=search, trade_type=trade_type, code=code,
             limit=limit, offset=offset,
             major_exchanges_only=major_only,
+            sort=sort, order=order,
         )
         trades = _format_insider_trade_rows(df)
         # Enrich with cached prices only (don't hit Schwab on every search)
@@ -820,6 +825,7 @@ async def insider_search(request: Request) -> HTMLResponse:
         request, "_insider_trade_rows.html",
         {"request": request, "trades": trades, "page": page,
          "search": search, "trade_type": trade_type, "code": code,
+         "sort": sort, "order": order,
          "major_exchanges_only": major_only},
     )
 
