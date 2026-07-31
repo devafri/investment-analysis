@@ -1135,8 +1135,11 @@ def enrich_trades_with_prices(
 
 
 def compute_performance_summary(trades: list) -> dict:
-    """Compute average gain/loss by trade type and direction from enriched
-    trade dicts (must already have gain_loss_pct populated)."""
+    """Compute median annualized gain/loss by trade type and direction.
+
+    Uses median (not mean) — a single extreme outlier can skew the average
+    dramatically in financial returns data."""
+    import statistics
     groups = {"opp_buy": [], "opp_sell": [], "routine_buy": [], "routine_sell": []}
     for t in trades:
         gl = t.get("gain_loss_pct")
@@ -1152,9 +1155,8 @@ def compute_performance_summary(trades: list) -> dict:
         if vals:
             result[key] = {
                 "count": len(vals),
-                "avg_gain_pct": round(sum(vals) / len(vals), 1),
-                "median_gain_pct": round(sorted(vals)[len(vals)//2], 1),
+                "median_gain_pct": round(statistics.median(vals), 1),
             }
         else:
-            result[key] = {"count": 0, "avg_gain_pct": None, "median_gain_pct": None}
+            result[key] = {"count": 0, "median_gain_pct": None}
     return result

@@ -102,12 +102,12 @@
         {% set p = performance[key] %}
         <div class="stat-card {{ 'border-l-2 border-l-positive-300' if 'buy' in key else 'border-l-2 border-l-negative-300' }}">
           <div class="stat-card__label text-[11px]">{{ label }}</div>
-          <div class="stat-card__value text-sm {{ 'text-positive-600' if p.avg_gain_pct and p.avg_gain_pct > 0 else 'text-negative-600' if p.avg_gain_pct and p.avg_gain_pct < 0 else 'text-surface-500' }}">
-            {% if p.avg_gain_pct is not none %}
-              {{ "%+.1f"|format(p.avg_gain_pct) }}%
+          <div class="stat-card__value text-sm {{ 'text-positive-600' if p.median_gain_pct and p.median_gain_pct > 0 else 'text-negative-600' if p.median_gain_pct and p.median_gain_pct < 0 else 'text-surface-500' }}">
+            {% if p.median_gain_pct is not none %}
+              {{ "%+.1f"|format(p.median_gain_pct) }}%
             {% else %}—{% endif %}
           </div>
-          <div class="text-[10px] text-surface-400">avg ann. gain, {{ p.count }} trades</div>
+          <div class="text-[10px] text-surface-400">median ann. gain, {{ p.count }} trades</div>
         </div>
         {% endfor %}
       </div>
