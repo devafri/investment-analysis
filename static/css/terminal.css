@@ -1,0 +1,1055 @@
+/* ==========================================================================
+   SEC VALUE SCREEN — Research Terminal Design System
+   A high-density financial data platform aesthetic.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   0. Design Tokens (CSS custom properties)
+   -------------------------------------------------------------------------- */
+:root {
+  /* --- Typography --- */
+  --font-ui: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', 'Roboto Mono', 'Cascadia Code', monospace;
+
+  /* --- Light mode palette --- */
+  --bg-root:              #f8fafc;   /* slate-50  */
+  --bg-surface:           #ffffff;   /* white     */
+  --bg-surface-raised:    #ffffff;
+  --bg-muted:             #f1f5f9;   /* slate-100 */
+  --bg-accent:            #f0f9ff;   /* sky-50    */
+  --border-default:       #e2e8f0;   /* slate-200 */
+  --border-emphasis:      #cbd5e1;   /* slate-300 */
+  --text-primary:         #0f172a;   /* slate-900 */
+  --text-secondary:       #475569;   /* slate-600 */
+  --text-muted:           #94a3b8;   /* slate-400 */
+  --text-accent:          #0369a1;   /* sky-700   */
+  --text-link:            #0284c7;   /* sky-600   */
+
+  /* --- Semantic --- */
+  --color-positive:       #059669;   /* emerald-600 */
+  --color-positive-bg:    #ecfdf5;   /* emerald-50  */
+  --color-positive-muted: #d1fae5;   /* emerald-100 */
+  --color-negative:       #e11d48;   /* rose-600    */
+  --color-negative-bg:    #fff1f2;   /* rose-50     */
+  --color-negative-muted: #ffe4e6;   /* rose-100    */
+  --color-warning:        #d97706;   /* amber-600   */
+  --color-warning-bg:     #fffbeb;   /* amber-50    */
+  --color-info:           #0284c7;   /* sky-600     */
+  --color-info-bg:        #f0f9ff;   /* sky-50      */
+
+  /* --- Spacing --- */
+  --space-unit: 4px;
+
+  /* --- Shadows --- */
+  --shadow-card:  0 1px 3px 0 rgb(0 0 0 / 0.04), 0 1px 2px -1px rgb(0 0 0 / 0.04);
+  --shadow-raised: 0 4px 6px -1px rgb(0 0 0 / 0.06), 0 2px 4px -2px rgb(0 0 0 / 0.04);
+  --shadow-overlay: 0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.04);
+
+  /* --- Radii --- */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+
+  /* --- Transitions --- */
+  --transition-fast: 120ms ease;
+  --transition-normal: 200ms ease;
+  --transition-slow: 300ms ease;
+}
+
+/* --------------------------------------------------------------------------
+   1. Base & Typography
+   -------------------------------------------------------------------------- */
+html {
+  font-size: 14px;                              /* compact base for data density */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  font-family: var(--font-ui);
+  background: var(--bg-root);
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+
+/* All financial figures: monospace for vertical alignment */
+.font-mono,
+td[class*="font-mono"],
+.financial-figure,
+table[class*="divide-y"] td {
+  font-feature-settings: "tnum", "zero", "ss02";
+  letter-spacing: -0.01em;
+}
+
+/* Make every table cell that isn't a name/label use mono */
+td:not(:first-child):not(:nth-child(2)):not(:nth-child(3)) {
+  font-variant-numeric: tabular-nums;
+}
+
+/* --------------------------------------------------------------------------
+   2. Layout Shell
+   -------------------------------------------------------------------------- */
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Top navigation bar — compact, Bloomberg-style */
+.nav-terminal {
+  height: 48px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-default);
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  gap: 24px;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  backdrop-filter: blur(12px);
+  background: rgb(255 255 255 / 0.92);
+}
+
+.nav-terminal .nav-brand {
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.nav-terminal .nav-links {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.nav-terminal .nav-link {
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.nav-terminal .nav-link:hover {
+  background: var(--bg-muted);
+  color: var(--text-primary);
+}
+
+.nav-terminal .nav-link.active {
+  background: var(--bg-accent);
+  color: var(--text-accent);
+}
+
+/* Status indicator dot */
+.status-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.status-dot::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+
+.status-dot.connected {
+  background: var(--color-positive-bg);
+  color: var(--color-positive);
+}
+.status-dot.connected::before { background: var(--color-positive); }
+
+.status-dot.disconnected {
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+}
+.status-dot.disconnected::before { background: var(--color-warning); }
+
+/* --------------------------------------------------------------------------
+   3. Cards
+   -------------------------------------------------------------------------- */
+.card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  box-shadow: var(--shadow-card);
+}
+
+.card--accent {
+  border-color: #bae6fd;  /* sky-200 */
+  background: var(--bg-accent);
+}
+
+.card--warning {
+  border-color: #fde68a;  /* amber-200 */
+  background: var(--color-warning-bg);
+}
+
+.card--error {
+  border-color: #fecdd3;  /* rose-200 */
+  background: var(--color-negative-bg);
+}
+
+/* Stat card — for KPI rows */
+.stat-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 16px 20px;
+  box-shadow: var(--shadow-card);
+}
+
+.stat-card__label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.stat-card__value {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-feature-settings: "tnum";
+}
+
+.stat-card__sub {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* --------------------------------------------------------------------------
+   4. Data Tables — the core of the terminal
+   -------------------------------------------------------------------------- */
+
+/* Wrapper: rounded, shadow, overflow control */
+.table-container {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Base table */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* Sticky header */
+.data-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.data-table thead th {
+  background: var(--bg-muted);
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 10px 12px;
+  text-align: left;
+  white-space: nowrap;
+  border-bottom: 2px solid var(--border-default);
+  user-select: none;
+}
+
+/* Sortable header links */
+.data-table thead th a {
+  color: inherit;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: color var(--transition-fast);
+}
+
+.data-table thead th a:hover {
+  color: var(--text-accent);
+}
+
+/* Body cells */
+.data-table tbody td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #f1f5f9;  /* slate-100 */
+  white-space: nowrap;
+}
+
+/* Zebra striping */
+.data-table tbody tr:nth-child(even) {
+  background: #fafbfc;
+}
+
+/* Row hover */
+.data-table tbody tr:hover {
+  background: #f0f9ff;  /* sky-50 */
+  transition: background 80ms ease;
+}
+
+/* Clickable row */
+.data-table tbody tr[onclick] {
+  cursor: pointer;
+}
+
+/* Ticker column — bold, accent color */
+.data-table .col-ticker {
+  font-weight: 600;
+  color: var(--text-accent);
+  font-family: var(--font-mono);
+}
+
+/* Name column — truncate long names */
+.data-table .col-name {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Financial number columns — monospace, tabular */
+.data-table .col-number {
+  font-family: var(--font-mono);
+  font-feature-settings: "tnum", "zero";
+  text-align: right;
+}
+
+/* Positive value highlight */
+.val-positive {
+  color: var(--color-positive);
+  font-weight: 500;
+}
+
+/* Negative value highlight */
+.val-negative {
+  color: var(--color-negative);
+  font-weight: 500;
+}
+
+/* Neutral / dash */
+.val-muted {
+  color: var(--text-muted);
+}
+
+/* Trend arrow */
+.trend-up   { color: var(--color-positive); }
+.trend-down { color: var(--color-negative); }
+.trend-flat { color: var(--text-muted); }
+
+/* --------------------------------------------------------------------------
+   5. Badges & Pills
+   -------------------------------------------------------------------------- */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.badge--pass     { background: var(--color-positive-bg);  color: var(--color-positive); }
+.badge--fail     { background: var(--color-negative-bg);  color: var(--color-negative); }
+.badge--warn     { background: var(--color-warning-bg);   color: var(--color-warning); }
+.badge--neutral  { background: var(--bg-muted);           color: var(--text-secondary); }
+.badge--accent   { background: var(--color-info-bg);      color: var(--color-info); }
+.badge--muted    { background: transparent;               color: var(--text-muted); border: 1px solid var(--border-default); }
+
+/* F-Score specific */
+.badge--fscore-high { background: var(--color-positive-bg); color: #047857; }  /* emerald-700 */
+.badge--fscore-mid  { background: var(--color-warning-bg);  color: #b45309; }  /* amber-700 */
+.badge--fscore-low  { background: var(--color-negative-bg); color: #be123c; }  /* rose-700 */
+
+/* Magic Formula rank */
+.badge--mf-true { background: var(--color-positive-muted); color: #047857; font-weight: 700; }
+.badge--mf-partial { color: var(--text-muted); font-size: 11px; }
+
+/* --------------------------------------------------------------------------
+   6. Margin of Safety visualization
+   -------------------------------------------------------------------------- */
+.mos-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Mini progress bar for MoS */
+.mos-bar {
+  width: 60px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--bg-muted);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.mos-bar__fill {
+  height: 100%;
+  border-radius: 9999px;
+  transition: width var(--transition-slow);
+}
+
+.mos-bar__fill--discount {
+  background: linear-gradient(90deg, #34d399, #10b981);  /* emerald */
+}
+
+.mos-bar__fill--premium {
+  background: linear-gradient(90deg, #f87171, #e11d48);  /* rose */
+}
+
+/* Large MoS display (company detail hero) */
+.mos-hero {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 24px;
+  border-radius: var(--radius-lg);
+  border: 2px solid var(--border-default);
+}
+
+.mos-hero--discount {
+  border-color: var(--color-positive-muted);
+  background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%);
+}
+
+.mos-hero--premium {
+  border-color: var(--color-negative-muted);
+  background: linear-gradient(135deg, #fff1f2 0%, #fef2f2 100%);
+}
+
+.mos-hero__value {
+  font-size: 42px;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.mos-hero--discount .mos-hero__value { color: #047857; }  /* emerald-700 */
+.mos-hero--premium .mos-hero__value { color: #be123c; }   /* rose-700 */
+
+.mos-hero__label {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+/* --------------------------------------------------------------------------
+   7. Forms & Range Sliders
+   -------------------------------------------------------------------------- */
+
+/* Range input — custom styled for terminal aesthetic */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--bg-muted);
+  outline: none;
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: var(--text-accent);
+  border: 2px solid white;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.2);
+  cursor: pointer;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.25);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: var(--text-accent);
+  border: 2px solid white;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.2);
+  cursor: pointer;
+}
+
+/* Slider track fill (only possible with progress-style approach in JS, but
+   we style the track uniformly for now since cross-browser fill is complex) */
+input[type="range"]:focus::-webkit-slider-thumb {
+  box-shadow: 0 0 0 4px rgb(2 132 199 / 0.15);  /* sky-600 at 15% */
+}
+
+/* Checkbox / toggle */
+.filter-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+  user-select: none;
+}
+
+.filter-toggle:hover {
+  border-color: var(--border-emphasis);
+  background: var(--bg-muted);
+}
+
+.filter-toggle input[type="checkbox"] {
+  accent-color: var(--text-accent);
+  width: 16px;
+  height: 16px;
+}
+
+/* Text input */
+.input-text {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-primary);
+  background: var(--bg-surface);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.input-text:focus {
+  outline: none;
+  border-color: var(--text-accent);
+  box-shadow: 0 0 0 3px rgb(2 132 199 / 0.1);
+}
+
+/* Select */
+.input-select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--text-primary);
+  background: var(--bg-surface);
+  cursor: pointer;
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-decoration: none;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.btn:active { transform: scale(0.98); }
+
+.btn--primary {
+  background: #0284c7;
+  color: white;
+  border-color: #0284c7;
+}
+.btn--primary:hover { background: #0369a1; }
+
+.btn--secondary {
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  border-color: var(--border-default);
+}
+.btn--secondary:hover { background: var(--bg-muted); color: var(--text-primary); }
+
+.btn--ghost {
+  background: transparent;
+  color: var(--text-muted);
+}
+.btn--ghost:hover { color: var(--text-primary); background: var(--bg-muted); }
+
+.btn--danger {
+  background: var(--color-negative);
+  color: white;
+  border-color: var(--color-negative);
+}
+.btn--danger:hover { background: #be123c; }
+
+.btn--sm { padding: 5px 12px; font-size: 12px; }
+.btn--lg { padding: 12px 24px; font-size: 15px; }
+
+/* Watchlist star button */
+.btn-star {
+  background: none;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 2px 4px;
+  transition: color var(--transition-fast), transform var(--transition-fast);
+  line-height: 1;
+}
+
+.btn-star:hover { transform: scale(1.2); }
+.btn-star--off { color: #cbd5e1; }   /* slate-300 */
+.btn-star--off:hover { color: #fbbf24; }  /* amber-400 */
+.btn-star--on  { color: #f59e0b; }   /* amber-500 */
+
+/* --------------------------------------------------------------------------
+   8. HTMX Lifecycle Animations
+   -------------------------------------------------------------------------- */
+
+/* The htmx-indicator — hidden by default, shown during requests */
+.htmx-indicator {
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+.htmx-request .htmx-indicator,
+.htmx-indicator.htmx-request {
+  opacity: 1;
+}
+
+/* Swap transitions — smooth fades for dynamic content */
+.htmx-swapping {
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+.htmx-settling {
+  opacity: 1;
+  transition: opacity 200ms ease;
+}
+
+/* Table row: subtle entrance for newly loaded rows */
+.htmx-added {
+  animation: row-enter 300ms ease;
+}
+
+@keyframes row-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Loading spinner */
+.spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border-default);
+  border-top-color: var(--text-accent);
+  border-radius: 9999px;
+  animation: spin 600ms linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Loading skeleton pulse */
+.skeleton {
+  background: linear-gradient(90deg, var(--bg-muted) 25%, #e2e8f0 50%, var(--bg-muted) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+  border-radius: var(--radius-sm);
+}
+
+@keyframes skeleton-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Market data loading banner */
+.market-loading-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  background: var(--color-info-bg);
+  color: var(--color-info);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* Fade-in for progress updates */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.animate-fade-in {
+  animation: fade-in 250ms ease;
+}
+
+/* --------------------------------------------------------------------------
+   9. Ingest Progress Bar
+   -------------------------------------------------------------------------- */
+.progress-track {
+  width: 100%;
+  height: 8px;
+  border-radius: 9999px;
+  background: var(--bg-muted);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 9999px;
+  transition: width 500ms ease;
+}
+
+.progress-fill--active  { background: linear-gradient(90deg, #0ea5e9, #0284c7); }
+.progress-fill--success { background: linear-gradient(90deg, #34d399, #10b981); }
+.progress-fill--error   { background: linear-gradient(90deg, #f87171, #e11d48); }
+
+/* Source list in progress */
+.source-list {
+  background: var(--bg-muted);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  font-size: 12px;
+}
+
+.source-list__item {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+/* --------------------------------------------------------------------------
+   10. Valuation Cards (Company Detail)
+   -------------------------------------------------------------------------- */
+.val-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.val-card {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.val-card__title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+.val-card__value {
+  font-size: 36px;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  letter-spacing: -0.03em;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.val-card__detail {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.val-card__detail-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--bg-muted);
+  font-size: 12px;
+}
+
+.val-card__detail-row:last-child {
+  border-bottom: none;
+}
+
+/* --------------------------------------------------------------------------
+   11. Trend Table (multi-period)
+   -------------------------------------------------------------------------- */
+.trend-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.trend-table thead th {
+  background: var(--bg-muted);
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 2px solid var(--border-default);
+  color: var(--text-secondary);
+}
+
+.trend-table tbody td {
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--bg-muted);
+  font-family: var(--font-mono);
+  font-feature-settings: "tnum";
+}
+
+.trend-table tbody tr:nth-child(even) { background: #fafbfc; }
+.trend-table tbody tr:hover         { background: var(--bg-accent); }
+
+.trend-table .trend-period {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+}
+
+.trend-table .trend-form {
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 11px;
+}
+
+/* --------------------------------------------------------------------------
+   12. Red Flags
+   -------------------------------------------------------------------------- */
+.flag-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.flag-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 0;
+  font-size: 13px;
+  color: var(--color-negative);
+}
+
+.flag-list li::before {
+  content: '⚠';
+  flex-shrink: 0;
+  font-size: 14px;
+}
+
+/* --------------------------------------------------------------------------
+   13. Detail Groups (Key-Value pairs)
+   -------------------------------------------------------------------------- */
+.detail-group {
+  display: grid;
+  gap: 0;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--bg-muted);
+  font-size: 13px;
+}
+
+.detail-row:last-child {
+  border-bottom: none;
+}
+
+.detail-row__key {
+  font-weight: 500;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  margin-right: 16px;
+}
+
+.detail-row__value {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-feature-settings: "tnum";
+  color: var(--text-primary);
+  word-break: break-all;
+}
+
+/* --------------------------------------------------------------------------
+   14. Empty States
+   -------------------------------------------------------------------------- */
+.empty-state {
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--text-muted);
+}
+
+.empty-state__icon {
+  font-size: 40px;
+  margin-bottom: 12px;
+  opacity: 0.4;
+}
+
+.empty-state__title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.empty-state__desc {
+  font-size: 13px;
+  max-width: 360px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+/* --------------------------------------------------------------------------
+   15. Responsive Utilities
+   -------------------------------------------------------------------------- */
+@media (max-width: 768px) {
+  html { font-size: 13px; }
+
+  .nav-terminal {
+    padding: 0 12px;
+    gap: 8px;
+  }
+
+  .val-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .data-table { font-size: 11px; }
+  .data-table thead th,
+  .data-table tbody td { padding: 6px 8px; }
+
+  .card { padding: 16px; }
+}
+
+/* --------------------------------------------------------------------------
+   16. Print (for exporting/saving research)
+   -------------------------------------------------------------------------- */
+@media print {
+  .nav-terminal,
+  .btn,
+  input[type="range"],
+  .filter-toggle {
+    display: none !important;
+  }
+
+  body {
+    background: white;
+    font-size: 11px;
+  }
+
+  .data-table thead {
+    position: static;
+  }
+
+  .card {
+    box-shadow: none;
+    border: 1px solid #ddd;
+    break-inside: avoid;
+  }
+
+  .data-table tbody tr:nth-child(even) {
+    background: #f9f9f9 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   17. Utility classes (when Tailwind CDN isn't sufficient)
+   -------------------------------------------------------------------------- */
+
+/* Monospace financial numbers */
+.u-mono {
+  font-family: var(--font-mono) !important;
+  font-feature-settings: "tnum", "zero" !important;
+}
+
+/* Truncate */
+.u-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Section spacing */
+.u-section { margin-bottom: 24px; }
+.u-section--lg { margin-bottom: 40px; }
+
+/* Inline separator dot */
+.u-sep {
+  display: inline-block;
+  margin: 0 8px;
+  color: var(--text-muted);
+}
+
+/* Sticky top (for table headers within scroll containers) */
+.u-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+/* Smooth page transitions for HTMX boosted links */
+.htmx-boosted {
+  transition: opacity 150ms ease;
+}

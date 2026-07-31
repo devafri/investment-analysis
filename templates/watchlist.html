@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="space-y-6">
+  <div>
+    <h2 class="text-2xl font-bold text-surface-900 tracking-tight">Watchlist</h2>
+    <p class="text-[13px] text-surface-500 mt-1">Companies you've starred from the screen. Shows entry price, current price, and gain/loss.</p>
+  </div>
+
+  {% if not rows %}
+  <div class="card text-center py-16">
+    <div class="empty-state__icon" style="font-size:40px;opacity:0.3;">★</div>
+    <div class="empty-state__title">No companies on your watchlist yet</div>
+    <div class="empty-state__desc">
+      Click the ★ next to any company on the
+      <a href="/screen" class="text-sky-600 hover:text-sky-700 font-medium">Screen</a>
+      to add it here.
+    </div>
+  </div>
+  {% else %}
+  <div class="table-container">
+    <div class="table-scroll">
+      <table class="data-table min-w-[1100px]">
+        <thead>
+          <tr>
+            <th class="w-8 px-2 py-3"></th>
+            <th class="px-2 py-3">Ticker</th>
+            <th class="px-2 py-3">Name</th>
+            <th class="px-2 py-3">Added</th>
+            <th class="px-2 py-3">Entry Price</th>
+            <th class="px-2 py-3">Current</th>
+            <th class="px-2 py-3">Change</th>
+            <th class="px-2 py-3">ROIC</th>
+            <th class="px-2 py-3">Op Margin</th>
+            <th class="px-2 py-3">D/E</th>
+            <th class="px-2 py-3">F-Score</th>
+            <th class="px-2 py-3">MoS</th>
+            <th class="px-2 py-3">MF Rank</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          <tr onclick="window.location='/company/{{ row.cik }}'">
+            <td class="px-2 py-2 text-center" onclick="event.stopPropagation()">
+              <button class="btn-star btn-star--on"
+                      hx-post="/watchlist/toggle/{{ row.cik }}" hx-swap="outerHTML"
+                      title="Remove from watchlist">★</button>
+            </td>
+            <td class="px-2 py-2 font-semibold text-sky-700 font-mono">{{ row.display_ticker }}</td>
+            <td class="px-2 py-2 max-w-[160px] truncate text-surface-700">{{ row.row.get('Name') or row.row.get('name') or '—' }}</td>
+
+            {# Date added #}
+            <td class="px-2 py-2 text-xs text-surface-500">
+              {% if row.added_at %}
+                {{ row.added_at[:10] }}
+              {% else %}—{% endif %}
+            </td>
+
+            {# Entry price #}
+            <td class="px-2 py-2 font-mono tabular-nums text-surface-500">
+              {{ row.added_price | fmt_currency if row.added_price is not none else '—' }}
+            </td>
+
+            {# Current price #}
+            <td class="px-2 py-2 font-mono tabular-nums">
+              {{ row.current_price | fmt_currency if row.current_price is not none else '—' }}
+            </td>
+
+            {# Change (dollar + percent) #}
+            <td class="px-2 py-2 font-mono tabular-nums">
+              {% if row.price_change is not none %}
+                <span class="{{ 'val-positive' if row.price_change > 0 else 'val-negative' if row.price_change < 0 else '' }}">
+                  {{ '+' if row.price_change > 0 else '' }}{{ row.price_change | fmt_currency }}
+                </span>
+                <span class="ml-1 text-[10px] {{ 'val-positive' if row.price_change > 0 else 'val-negative' if row.price_change < 0 else 'val-muted' }}">
+                  ({{ '+' if row.price_change_pct and row.price_change_pct > 0 else '' }}{{ row.price_change_pct | fmt_pct if row.price_change_pct is not none else '—' }})
+                </span>
+              {% else %}—{% endif %}
+            </td>
+
+            <td class="px-2 py-2 font-mono tabular-nums">
+              <span class="{{ 'val-positive' if row.roic and row.roic > 0.10 else 'val-muted' }}">{{ row.roic | fmt_pct }}</span>
+            </td>
+            <td class="px-2 py-2 font-mono tabular-nums">{{ row.operating_margin | fmt_pct }}</td>
+            <td class="px-2 py-2 font-mono tabular-nums
+                       {{ 'val-negative' if row.debt_to_equity and row.debt_to_equity > 1.0 else '' }}">
+              {{ row.debt_to_equity | fmt_number }}
+            </td>
+            <td class="px-2 py-2">
+              {% if row.fscore is not none %}
+              <span class="badge
+                {{ 'badge--fscore-high' if row.fscore >= 7 else 'badge--fscore-mid' if row.fscore >= 4 else 'badge--fscore-low' }}">
+                {{ row.fscore }}/9
+              </span>
+              {% else %}<span class="val-muted">—</span>{% endif %}
+            </td>
+            <td class="px-2 py-2">
+              {% if row.margin_of_safety_dcf is not none %}
+                {% if row.margin_of_safety_dcf > 0 %}
+                <span class="badge badge--pass">{{ row.margin_of_safety_dcf | fmt_pct }} ↓</span>
+                {% else %}
+                <span class="badge badge--fail">{{ (row.margin_of_safety_dcf * -1) | fmt_pct }} ↑</span>
+                {% endif %}
+              {% else %}<span class="val-muted">—</span>{% endif %}
+            </td>
+            <td class="px-2 py-2">
+              {% if row.magic_formula_rank is not none %}
+              <span class="{{ 'badge badge--mf-true' if row.is_true_magic_formula else 'badge--mf-partial' }}">
+                #{{ row.magic_formula_rank }}
+              </span>
+              {% else %}<span class="val-muted">—</span>{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,71 @@
+{# Error banner #}
+{% if error %}
+<div class="card card--error text-sm text-negative-700 whitespace-pre-line mb-4">{{ error }}</div>
+{% endif %}
+
+<div class="space-y-4"
+     {% if not state.running and state.complete %}hx-trigger="none"
+     {% else %}hx-get="/ingest/progress" hx-trigger="every 1s" hx-swap="outerHTML"{% endif %}>
+
+  {# --- Progress bar --- #}
+  {% set pct = (state.completed_sources / state.total_sources * 100) if state.total_sources > 0 else 0 %}
+  <div>
+    <div class="flex items-center justify-between text-[13px] mb-1.5">
+      <span class="font-semibold text-surface-700">
+        {% if state.running %}
+          <span class="spinner mr-1.5"></span> Ingesting…
+        {% elif state.error %}
+          ⚠ Ingest failed
+        {% elif state.complete %}
+          ✓ Ingest complete
+        {% else %}
+          Starting…
+        {% endif %}
+      </span>
+      <span class="font-mono text-xs text-surface-500">{{ state.completed_sources }} / {{ state.total_sources }} sources</span>
+    </div>
+
+    <div class="progress-track">
+      <div class="progress-fill
+                  {{ 'progress-fill--success' if state.complete and not state.error else 'progress-fill--error' if state.error else 'progress-fill--active' }}"
+           style="width: {{ pct if not state.error else 100 }}%"></div>
+    </div>
+
+    {% if state.current_source and state.running %}
+    <p class="mt-1.5 text-[11px] text-surface-500">
+      Current: <span class="font-mono text-surface-700">{{ state.current_source }}</span>
+    </p>
+    {% endif %}
+    {% if state.total_filings > 0 %}
+    <p class="mt-0.5 text-[11px] text-surface-500">
+      <span class="font-mono tabular-nums text-surface-700">{{ state.total_filings }}</span> filings accumulated so far
+    </p>
+    {% endif %}
+  </div>
+
+  {# --- Completed sources list --- #}
+  {% if state.sources_done %}
+  <div class="source-list">
+    {% for src in state.sources_done %}
+    <div class="source-list__item">
+      <span>{{ src.name }}</span>
+      <span class="tabular-nums">{{ src.filings }} filings</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {# --- Error state --- #}
+  {% if state.error %}
+  <div class="card card--error text-sm text-negative-700 whitespace-pre-line animate-fade-in">{{ state.error }}</div>
+  <a href="/setup" class="btn btn--primary">Back to Setup</a>
+  {% endif %}
+
+  {# --- Complete state --- #}
+  {% if state.complete and not state.error %}
+  <div class="flex items-center gap-3 animate-fade-in">
+    <a href="/screen" class="btn btn--primary">Go to Screen →</a>
+    <a href="/" class="text-[13px] text-surface-500 hover:text-surface-700">Home</a>
+  </div>
+  {% endif %}
+</div>

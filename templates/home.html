@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="space-y-6">
+
+  {# Schwab warning #}
+  {% if schwab_status is defined and not schwab_status.connected %}
+  <div class="card card--warning text-sm text-amber-800">
+    <strong>Schwab isn't connected yet.</strong> TTM figures and screening work fine without it,
+    but "Refresh Market Data" (price, Graham Number vs. price, Margin of Safety) needs it.
+    Run <code class="font-mono bg-amber-100 px-1.5 py-0.5 rounded text-xs">python3 -m providers.schwab.setup</code> to connect.
+  </div>
+  {% endif %}
+
+  {# ======================================================================= #}
+  {# Stat cards — data overview                                              #}
+  {# ======================================================================= #}
+  <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div class="stat-card">
+      <div class="stat-card__label">Companies</div>
+      <div class="stat-card__value">{{ summary.total_companies }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-card__label">Filings</div>
+      <div class="stat-card__value">{{ summary.total_filings }}</div>
+      {% if summary.total_filings > 0 %}
+      <div class="stat-card__sub">{{ summary.n_10k }} 10-K &middot; {{ summary.n_10q }} 10-Q</div>
+      {% endif %}
+    </div>
+    <div class="stat-card">
+      <div class="stat-card__label">Period Range</div>
+      {% if summary.earliest_period %}
+      <div class="stat-card__value text-xl">{{ summary.earliest_period }}</div>
+      <div class="stat-card__sub">to {{ summary.latest_period }}</div>
+      {% else %}
+      <div class="stat-card__value text-surface-300">—</div>
+      {% endif %}
+    </div>
+    <div class="stat-card">
+      <div class="stat-card__label">Sources Ingested</div>
+      <div class="stat-card__value">{{ ingest_log | length }}</div>
+      {% if ingest_log %}
+      <div class="stat-card__sub">last: <span class="font-mono">{{ ingest_log[0].source_name }}</span></div>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ======================================================================= #}
+  {# Primary actions                                                         #}
+  {# ======================================================================= #}
+  <div class="grid gap-4 sm:grid-cols-2">
+    {% if summary.total_filings > 0 %}
+    <a href="/screen" class="card card--accent hover:shadow-raised transition-shadow no-underline">
+      <h2 class="text-lg font-semibold text-sky-800">Go to Screen →</h2>
+      <p class="mt-1 text-[13px] text-sky-600">{{ summary.total_companies }} companies across {{ summary.total_filings }} filings ready to screen.</p>
+    </a>
+    {% else %}
+    <div class="card card--warning">
+      <h2 class="text-lg font-semibold text-amber-800">No data yet</h2>
+      <p class="mt-1 text-[13px] text-amber-600">
+        Ingest your first quarterly ZIP to start screening.
+        <a href="/setup" class="font-medium underline">Go to Setup</a> to get started.
+      </p>
+    </div>
+    {% endif %}
+    <a href="/setup" class="card hover:shadow-raised transition-shadow no-underline">
+      <h2 class="text-lg font-semibold text-surface-700">Manage Data →</h2>
+      <p class="mt-1 text-[13px] text-surface-500">Add more quarterly data or review what's already been ingested.</p>
+    </a>
+  </div>
+
+  {# ======================================================================= #}
+  {# Recent ingest log                                                       #}
+  {# ======================================================================= #}
+  {% if ingest_log %}
+  <div class="card">
+    <h3 class="text-sm font-semibold text-surface-700 mb-3">Recently ingested</h3>
+    <div class="table-scroll">
+      <table class="data-table min-w-[400px]">
+        <thead>
+          <tr>
+            <th>Source</th>
+            <th>Filings added</th>
+            <th>Ingested at</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for entry in ingest_log[:10] %}
+          <tr>
+            <td class="font-mono text-xs text-surface-700">{{ entry.source_name }}</td>
+            <td class="font-mono tabular-nums">{{ entry.filings_added }}</td>
+            <td class="text-xs text-surface-500">{{ entry.ingested_at }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

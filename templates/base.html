@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SEC Value Screen</title>
+
+    <!-- Fonts: Inter for UI, JetBrains Mono for financial figures -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+
+    <!-- Tailwind CSS CDN + config -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+              mono: ['JetBrains Mono', 'SF Mono', 'Roboto Mono', 'Cascadia Code', 'monospace'],
+            },
+            colors: {
+              // Financial semantic colors
+              positive: {
+                50:  '#ecfdf5', 100: '#d1fae5', 200: '#a7f3d0',
+                400: '#34d399', 500: '#10b981', 600: '#059669', 700: '#047857',
+              },
+              negative: {
+                50:  '#fff1f2', 100: '#ffe4e6', 200: '#fecdd3',
+                400: '#fb7185', 500: '#f43f5e', 600: '#e11d48', 700: '#be123c',
+              },
+              // Terminal surface colors (slightly cooler than default slate)
+              surface: {
+                50:  '#f8fafc', 100: '#f1f5f9', 200: '#e2e8f0',
+                300: '#cbd5e1', 400: '#94a3b8', 500: '#64748b',
+                600: '#475569', 700: '#334155', 800: '#1e293b', 900: '#0f172a',
+              },
+            },
+            fontSize: {
+              '2xs': ['0.625rem', { lineHeight: '0.875rem' }],  // 10px — compact labels
+            },
+          },
+        },
+      }
+    </script>
+
+    <!-- Terminal Design System -->
+    <link rel="stylesheet" href="/static/css/terminal.css" />
+
+    <!-- HTMX: configure default swap animation -->
+    <style>
+      /* Augment CDN Tailwind with terminal-specific details */
+      .htmx-indicator { opacity: 0; transition: opacity 200ms ease; }
+      .htmx-request .htmx-indicator { opacity: 1; }
+      .htmx-swapping { opacity: 0; transition: opacity 150ms ease; }
+      .htmx-settling { opacity: 1; transition: opacity 200ms ease; }
+    </style>
+  </head>
+  <body class="bg-surface-50 text-surface-900 font-sans antialiased">
+    <div class="min-h-screen flex flex-col">
+
+      <!-- ================================================================= -->
+      <!-- Top Navigation Bar — Bloomberg-style compact terminal header       -->
+      <!-- ================================================================= -->
+      <header class="sticky top-0 z-50 border-b border-surface-200 bg-white/92 backdrop-blur">
+        <div class="flex items-center h-12 px-6 gap-6 max-w-[1400px] mx-auto w-full">
+          <!-- Brand -->
+          <a href="/" class="font-bold text-[15px] tracking-tight text-surface-900 no-underline whitespace-nowrap">
+            SEC Value Screen
+          </a>
+
+          <!-- Nav links -->
+          <nav class="flex items-center gap-0.5">
+            {% set current = request.url.path %}
+            {% set links = [
+              ('/',         'Home'),
+              ('/screen',   'Screen'),
+              ('/insider',  'Insider'),
+              ('/watchlist','Watchlist'),
+              ('/setup',    'Setup'),
+            ] %}
+            {% for href, label in links %}
+            <a href="{{ href }}"
+               class="px-3.5 py-1.5 rounded-md text-[13px] font-medium no-underline transition
+                      {{ 'bg-sky-50 text-sky-700' if current == href else 'text-surface-600 hover:text-surface-900 hover:bg-surface-100' }}">
+              {{ label }}
+            </a>
+            {% endfor %}
+          </nav>
+
+          <!-- Spacer -->
+          <div class="flex-1"></div>
+
+          <!-- Schwab connection status -->
+          {% if schwab_status is defined %}
+          <a href="/setup#schwab-form"
+             class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider no-underline transition hover:opacity-80
+                    {{ 'bg-positive-50 text-positive-600' if schwab_status.connected else 'bg-amber-50 text-amber-600' }}"
+             title="{{ schwab_status.detail }}{% if not schwab_status.connected %} — click to connect{% endif %}">
+            <span class="w-1.5 h-1.5 rounded-full shrink-0 {{ 'bg-positive-500' if schwab_status.connected else 'bg-amber-500' }}"></span>
+            Schwab {{ 'Connected' if schwab_status.connected else 'Offline' }}
+          </a>
+          {% endif %}
+        </div>
+      </header>
+
+      <!-- ================================================================= -->
+      <!-- Main content area                                                    -->
+      <!-- ================================================================= -->
+      <main class="flex-1 mx-auto w-full max-w-[1400px] px-6 py-6">
+        {% block content %}{% endblock %}
+      </main>
+
+      <!-- Footer — minimal, terminal-style -->
+      <footer class="border-t border-surface-200 px-6 py-3 text-[11px] text-surface-400 text-center">
+        SEC DERA data via sec.gov · Market data via {{ 'Schwab' if schwab_status is defined and schwab_status.connected else 'yfinance' }} · Local only
+      </footer>
+    </div>
+  </body>
+</html>

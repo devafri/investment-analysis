@@ -1,0 +1,242 @@
+{% macro sort_link(key, label) %}
+{% set next_order = 'desc' if (sort == key and order == 'asc') else 'asc' %}
+{% set qs = (base_query_string ~ '&') if base_query_string else '' %}
+<a class="hover:text-sky-700 inline-flex items-center gap-1" hx-get="/screen?{{ qs }}sort={{ key }}&order={{ next_order }}" hx-target="#results" hx-swap="innerHTML">
+  {{ label }}
+  {% if sort == key %}
+    <span class="text-[10px] text-surface-400">{{ '▲' if order == 'asc' else '▼' }}</span>
+  {% endif %}
+</a>
+{% endmacro %}
+
+<div class="space-y-4">
+  {# --- Errors & warnings --- #}
+  {% if error %}
+  <div class="card card--error text-sm text-negative-700">{{ error }}</div>
+  {% endif %}
+  {% if market_errors %}
+  <div class="card card--warning text-sm text-amber-700">
+    Some market data requests failed: {{ market_errors | join('; ') }}
+  </div>
+  {% endif %}
+
+  {# --- Summary stat cards --- #}
+  {% if summary %}
+  <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+    <div class="stat-card">
+      <div class="stat-card__label">Companies in data set</div>
+      <div class="stat-card__value">{{ summary.total_cached }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-card__label">Pass quality filters</div>
+      <div class="stat-card__value text-positive-600">{{ summary.total_passed }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-card__label">Avg ROIC (all)</div>
+      <div class="stat-card__value">{{ summary.avg_roic | fmt_pct }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-card__label">Avg Op. Margin (all)</div>
+      <div class="stat-card__value">{{ summary.avg_operating_margin | fmt_pct }}</div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# --- Diagnostic breakdown (no matches) --- #}
+  {% if diagnostics %}
+  <div class="card card--warning text-sm text-amber-800">
+    <p class="font-semibold mb-2">No companies matched the current thresholds. Diagnostic breakdown:</p>
+    <ul class="list-inside list-disc space-y-0.5 ml-1">
+      <li>Filings cached: <span class="font-mono">{{ diagnostics.cached_rows }}</span></li>
+      <li>Non-null ROIC: <span class="font-mono">{{ diagnostics.non_null_roic }}</span></li>
+      <li>Pass Min ROIC alone: <span class="font-mono">{{ diagnostics.passes_min_roic }}</span></li>
+      <li>Pass Min Operating Margin alone: <span class="font-mono">{{ diagnostics.passes_min_operating_margin }}</span></li>
+      <li>Pass Max Debt/Equity alone: <span class="font-mono">{{ diagnostics.passes_max_debt_to_equity }}</span></li>
+      <li>Pass Min Interest Coverage alone: <span class="font-mono">{{ diagnostics.passes_min_interest_coverage }}</span></li>
+      <li>Pass Min CFO/NI alone: <span class="font-mono">{{ diagnostics.passes_min_cfo_to_ni }}</span></li>
+      <li>Pass Min F-Score alone: <span class="font-mono">{{ diagnostics.passes_min_fscore }}</span></li>
+    </ul>
+    <p class="mt-2">Try loosening whichever threshold has the lowest pass count above.</p>
+  </div>
+  {% endif %}
+
+  {# ======================================================================= #}
+  {# Results table — the heart of the screener                               #}
+  {# ======================================================================= #}
+  <div class="table-container">
+    <div class="table-scroll">
+      <table class="data-table min-w-[1300px]">
+        <thead>
+          <tr>
+            <th class="w-8 px-2 py-3"></th>
+            <th class="px-2 py-3">{{ sort_link('ticker', 'Ticker') }}</th>
+            <th class="px-2 py-3">{{ sort_link('name', 'Name') }}</th>
+            <th class="px-2 py-3 col-extra hidden">{{ sort_link('sector', 'Sector') }}</th>
+            <th class="px-2 py-3">{{ sort_link('price', 'Price') }}</th>
+            <th class="px-2 py-3">{{ sort_link('dcf_intrinsic_value', 'DCF Value') }}</th>
+            <th class="px-2 py-3">{{ sort_link('margin_of_safety_dcf', 'MoS') }}</th>
+            <th class="px-2 py-3">{{ sort_link('roic', 'ROIC') }}</th>
+            <th class="px-2 py-3">{{ sort_link('revenue_growth', 'Rev Growth') }}</th>
+            <th class="px-2 py-3">{{ sort_link('operating_margin', 'Op Margin') }}</th>
+            <th class="px-2 py-3">{{ sort_link('debt_to_equity', 'D/E') }}</th>
+            <th class="px-2 py-3">{{ sort_link('fscore', 'F-Score') }}</th>
+            <th class="px-2 py-3 col-extra hidden">{{ sort_link('pe_ratio', 'P/E') }}</th>
+            <th class="px-2 py-3 col-extra hidden">{{ sort_link('magic_formula_rank', 'MF Rank') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in rows %}
+          <tr onclick="window.location='{{ row.company_url }}'">
+            {# Watchlist star #}
+            <td class="px-2 py-2 text-center" onclick="event.stopPropagation()">
+              <button class="btn-star {{ 'btn-star--on' if row.cik in watchlist else 'btn-star--off' }}"
+                      hx-post="/watchlist/toggle/{{ row.cik }}" hx-swap="outerHTML"
+                      title="{{ 'Remove from watchlist' if row.cik in watchlist else 'Add to watchlist' }}">
+                ★
+              </button>
+            </td>
+
+            {# Ticker #}
+            <td class="px-2 py-2 font-semibold text-sky-700 font-mono">{{ row.display_ticker }}</td>
+
+            {# Name #}
+            <td class="px-2 py-2 max-w-[180px] truncate text-surface-700">{{ row.row.get('Name') or row.row.get('name') or '—' }}</td>
+
+            {# Sector #}
+            <td class="px-2 py-2 text-surface-500 text-[11px] col-extra hidden">{{ row.sector or '—' }}</td>
+
+            {# Price #}
+            <td class="px-2 py-2 font-mono tabular-nums">{{ row.price | fmt_currency }}</td>
+
+            {# DCF Intrinsic Value + delta #}
+            <td class="px-2 py-2 font-mono tabular-nums">
+              {% if row.dcf_intrinsic_value is not none %}
+                {{ row.dcf_intrinsic_value | fmt_currency }}
+                {% if row.dcf_delta is not none %}
+                  <span class="ml-1 text-[10px] {{ 'val-positive' if row.dcf_delta > 0 else 'val-negative' }}">
+                    {{ '+' if row.dcf_delta > 0 else '' }}{{ row.dcf_delta | fmt_currency }}
+                  </span>
+                {% endif %}
+              {% else %}
+              <span class="val-muted">—</span>
+              {% endif %}
+            </td>
+
+            {# Margin of Safety (DCF) #}
+            <td class="px-2 py-2">
+              {% if row.margin_of_safety_dcf is not none %}
+                {% if row.margin_of_safety_dcf > 0 %}
+                <span class="badge badge--pass" title="Trading {{ row.margin_of_safety_dcf | fmt_pct }} below DCF intrinsic value">
+                  {{ row.margin_of_safety_dcf | fmt_pct }} ↓
+                </span>
+                {% else %}
+                <span class="badge badge--fail" title="Trading {{ (row.margin_of_safety_dcf * -1) | fmt_pct }} above DCF intrinsic value">
+                  {{ (row.margin_of_safety_dcf * -1) | fmt_pct }} ↑
+                </span>
+                {% endif %}
+              {% else %}
+              <span class="val-muted">—</span>
+              {% endif %}
+            </td>
+
+            {# ROIC + trend #}
+            <td class="px-2 py-2 font-mono tabular-nums">
+              <span class="{{ 'val-positive' if row.roic and row.roic > 0.10 else 'val-muted' }}">{{ row.roic | fmt_pct }}</span>
+              {% if row.roic_trend and row.roic_trend != '—' %}
+              <span class="ml-1 {{ 'trend-up' if row.roic_trend == '▲' else 'trend-down' }}">{{ row.roic_trend }}</span>
+              {% endif %}
+            </td>
+
+            {# Revenue Growth #}
+            <td class="px-2 py-2 font-mono tabular-nums
+                       {{ 'val-positive' if row.revenue_growth and row.revenue_growth > 0 else 'val-negative' if row.revenue_growth and row.revenue_growth < 0 else 'val-muted' }}">
+              {{ row.revenue_growth | fmt_pct }}
+            </td>
+
+            {# Operating Margin + trend #}
+            <td class="px-2 py-2 font-mono tabular-nums">
+              <span class="{{ 'val-positive' if row.operating_margin and row.operating_margin > 0.10 else '' }}">{{ row.operating_margin | fmt_pct }}</span>
+              {% if row.margin_trend and row.margin_trend != '—' %}
+              <span class="ml-1 {{ 'trend-up' if row.margin_trend == '▲' else 'trend-down' }}">{{ row.margin_trend }}</span>
+              {% endif %}
+            </td>
+
+            {# D/E #}
+            <td class="px-2 py-2 font-mono tabular-nums
+                       {{ 'val-negative' if row.debt_to_equity and row.debt_to_equity > 1.0 else '' }}">
+              {{ row.debt_to_equity | fmt_number }}
+            </td>
+
+            {# F-Score #}
+            <td class="px-2 py-2">
+              {% if row.fscore is not none %}
+              <span class="badge
+                {{ 'badge--fscore-high' if row.fscore >= 7 else 'badge--fscore-mid' if row.fscore >= 4 else 'badge--fscore-low' }}">
+                {{ row.fscore }}/9
+              </span>
+              {% else %}
+              <span class="val-muted">—</span>
+              {% endif %}
+            </td>
+
+            {# P/E #}
+            <td class="px-2 py-2 font-mono tabular-nums col-extra hidden">{{ row.pe_ratio | fmt_number }}</td>
+
+            {# Magic Formula Rank #}
+            <td class="px-2 py-2 col-extra hidden">
+              {% if row.magic_formula_rank is not none and row.is_true_magic_formula %}
+              <span class="badge badge--mf-true">#{{ row.magic_formula_rank }}</span>
+              {% elif row.magic_formula_rank is not none %}
+              <span class="badge--mf-partial">#{{ row.magic_formula_rank }}</span>
+              {% else %}
+              <span class="val-muted">—</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="14" class="empty-state">
+              <div class="empty-state__icon">∅</div>
+              <div class="empty-state__title">No companies matched</div>
+              <div class="empty-state__desc">Try loosening the quality thresholds or disabling the exchange filter.</div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {# ======================================================================= #}
+  {# Pagination                                                              #}
+  {# ======================================================================= #}
+  <div class="flex items-center justify-between text-[13px] text-surface-600">
+    <div>Page {{ pagination.page }} of {{ pagination.total_pages }} &middot; {{ pagination.total_rows }} companies</div>
+    <div class="flex gap-1">
+      {% set qs = (base_query_string ~ '&') if base_query_string else '' %}
+      {% set total = pagination.total_pages %}
+      {% set current = pagination.page %}
+      {% if current > 1 %}
+      <a class="btn btn--secondary btn--sm"
+         hx-get="/screen?{{ qs }}sort={{ sort }}&order={{ order }}&page={{ current - 1 }}"
+         hx-target="#results" hx-swap="innerHTML">←</a>
+      {% endif %}
+      {% for p in range(1, total + 1) %}
+        {% if p == current %}
+        <span class="btn btn--primary btn--sm">{{ p }}</span>
+        {% elif p <= 3 or p > total - 3 or (p >= current - 1 and p <= current + 1) %}
+        <a class="btn btn--secondary btn--sm"
+           hx-get="/screen?{{ qs }}sort={{ sort }}&order={{ order }}&page={{ p }}"
+           hx-target="#results" hx-swap="innerHTML">{{ p }}</a>
+        {% elif p == 4 or p == total - 3 %}
+        <span class="px-1 text-surface-400">…</span>
+        {% endif %}
+      {% endfor %}
+      {% if current < total %}
+      <a class="btn btn--secondary btn--sm"
+         hx-get="/screen?{{ qs }}sort={{ sort }}&order={{ order }}&page={{ current + 1 }}"
+         hx-target="#results" hx-swap="innerHTML">→</a>
+      {% endif %}
+    </div>
+  </div>
+</div>

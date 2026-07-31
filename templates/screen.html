@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="grid gap-6 lg:grid-cols-[300px_minmax(0,1fr)]">
+
+  {# ======================================================================= #}
+  {# Left sidebar — Filters                                                  #}
+  {# ======================================================================= #}
+  <aside class="card self-start lg:sticky lg:top-[72px]">
+    <div class="flex items-center justify-between mb-5">
+      <h2 class="text-base font-semibold text-surface-900">Filters</h2>
+      <a class="text-[11px] text-surface-400 hover:text-sky-600 transition" href="/screen" title="Reset all thresholds to defaults">Reset</a>
+    </div>
+
+    <form id="screen-form" hx-get="/screen" hx-trigger="input delay:350ms, change delay:100ms" hx-target="#results" hx-swap="innerHTML">
+
+      {# --- Quality Screen --- #}
+      <fieldset class="border-0 p-0 mb-5">
+        <legend class="text-2xs font-semibold uppercase tracking-widest text-surface-400 mb-3 w-full">
+          Quality Screen
+        </legend>
+        <div class="space-y-4">
+          {% set sliders = [
+            ('min_roic',              'Min ROIC',             0, 50, 0.5, '%'),
+            ('min_operating_margin',  'Min Operating Margin', 0, 50, 0.5, '%'),
+            ('max_debt_to_equity',    'Max Debt/Equity',      0, 3,  0.1, ''),
+            ('min_interest_coverage', 'Min Interest Coverage', 0, 20, 0.5, ''),
+            ('min_cfo_to_ni',         'Min CFO/NI',          0, 2,  0.1, ''),
+            ('min_revenue_growth',    'Min Revenue Growth',   -20, 50, 1, '%'),
+            ('min_fscore',            'Min F-Score',          0, 9,  1,   ''),
+          ] %}
+          {% for name, label, lo, hi, step, suffix in sliders %}
+          {% set raw_val = thresholds[name] %}
+          {% set display_val = (raw_val * 100) if suffix == '%' else raw_val %}
+          <div>
+            <label class="flex items-center justify-between text-[13px] font-medium text-surface-700 mb-1">
+              <span>{{ label }}</span>
+              <span id="{{ name }}-value" class="font-mono text-sky-700 text-xs">{{ display_val | round(1) }}{{ suffix }}</span>
+            </label>
+            <input type="range" min="{{ lo }}" max="{{ hi }}" step="{{ step }}"
+                   value="{{ display_val }}" name="{{ name }}"
+                   oninput="document.getElementById('{{ name }}-value').textContent = parseFloat(this.value).toFixed({{ 1 if step < 1 else 0 }}) + '{{ suffix }}'" />
+          </div>
+          {% endfor %}
+        </div>
+      </fieldset>
+
+      {# --- Valuation Assumptions --- #}
+      <fieldset class="border-0 p-0 mb-5">
+        <legend class="text-2xs font-semibold uppercase tracking-widest text-surface-400 mb-3 w-full">
+          Valuation (DCF)
+        </legend>
+        <div class="space-y-4">
+          {% set val_sliders = [
+            ('growth_rate',          'Growth Rate',          0, 20, 0.5),
+            ('discount_rate',        'Discount Rate',        0, 20, 0.5),
+            ('terminal_growth_rate', 'Terminal Growth Rate', 0, 10, 0.5),
+          ] %}
+          {% for name, label, lo, hi, step in val_sliders %}
+          {% set raw_val = thresholds[name] %}
+          <div>
+            <label class="flex items-center justify-between text-[13px] font-medium text-surface-700 mb-1">
+              <span>{{ label }}</span>
+              <span id="{{ name }}-value" class="font-mono text-sky-700 text-xs">{{ (raw_val * 100) | round(1) }}%</span>
+            </label>
+            <input type="range" min="{{ lo }}" max="{{ hi }}" step="{{ step }}"
+                   value="{{ raw_val * 100 }}" name="{{ name }}"
+                   oninput="document.getElementById('{{ name }}-value').textContent = parseFloat(this.value).toFixed(1) + '%'; checkDcfParams()" />
+          </div>
+          {% endfor %}
+
+          {# DCF validity warning — shown when discount_rate ≤ terminal_growth_rate #}
+          <div id="dcf-warning" class="hidden text-xs px-3 py-2 rounded-md bg-amber-50 border border-amber-200 text-amber-800" role="alert">
+            ⚠️ Discount rate ≤ terminal growth rate. The DCF model cannot produce
+            meaningful intrinsic values with these assumptions — DCF values will
+            be blank until you set the discount rate higher than terminal growth.
+          </div>
+
+          <div>
+            <label class="flex items-center justify-between text-[13px] font-medium text-surface-700 mb-1">
+              <span>Projection Years</span>
+              <span id="projection-years-value" class="font-mono text-sky-700 text-xs">{{ thresholds.projection_years }}</span>
+            </label>
+            <input type="range" min="1" max="20" step="1"
+                   value="{{ thresholds.projection_years }}" name="projection_years"
+                   oninput="document.getElementById('projection-years-value').textContent = this.value" />
+          </div>
+        </div>
+      </fieldset>
+
+      {# --- Universe toggles --- #}
+      <fieldset class="border-0 p-0">
+        <legend class="text-2xs font-semibold uppercase tracking-widest text-surface-400 mb-3 w-full">
+          Universe
+        </legend>
+        <div class="space-y-2">
+          <label class="filter-toggle">
+            <input type="hidden" name="require_positive_ni" value="0" />
+            <input type="checkbox" name="require_positive_ni" value="on" {% if thresholds.require_positive_ni %}checked{% endif %} />
+            <span>Require positive net income</span>
+          </label>
+          <label class="filter-toggle">
+            <input type="hidden" name="major_exchanges_only" value="0" />
+            <input type="checkbox" name="major_exchanges_only" value="on" {% if thresholds.major_exchanges_only %}checked{% endif %} />
+            <span>NASDAQ / NYSE only</span>
+          </label>
+          <label class="filter-toggle">
+            <input type="hidden" name="exclude_financials" value="0" />
+            <input type="checkbox" name="exclude_financials" value="on" {% if thresholds.exclude_financials %}checked{% endif %} />
+            <span>Exclude financials (SIC 6000–6799)</span>
+          </label>
+        </div>
+      </fieldset>
+    </form>
+  </aside>
+
+  {# ======================================================================= #}
+  {# Right — results area                                                    #}
+  {# ======================================================================= #}
+  <section class="space-y-4 min-w-0">
+    {# Toolbar #}
+    <div class="flex flex-wrap items-center justify-between gap-3 card">
+      <div class="flex items-center gap-4">
+        <div>
+          <h2 class="text-lg font-semibold text-surface-900">Filtered results</h2>
+          <p class="text-[12px] text-surface-500 mt-0.5">Adjust sliders to re-screen live.</p>
+        </div>
+        {# Server-side search — filters across ALL companies, not just the
+           current page.  Includes the slider form so the current filter
+           thresholds are preserved.  Debounced at 250ms. #}
+        <input type="search" id="company-search" name="search"
+               placeholder="Filter by ticker or name…"
+               value="{{ request.query_params.get('search', '') }}"
+               class="input-text max-w-[220px] text-xs py-1.5"
+               hx-get="/screen"
+               hx-trigger="keyup changed delay:250ms"
+               hx-target="#results"
+               hx-swap="innerHTML"
+               hx-include="#screen-form" />
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        {# Refresh this page #}
+        <button class="btn btn--secondary btn--sm"
+                hx-post="/market-data/refresh{{ '?' ~ query_string if query_string else '' }}"
+                hx-target="#results" hx-swap="innerHTML" hx-indicator="#market-loading">
+          <span class="spinner mr-1.5 htmx-indicator"></span>
+          Refresh Prices (page)
+        </button>
+
+        {# Refresh all #}
+        {% if market_data_provider == "schwab" %}
+        <button class="btn btn--secondary btn--sm"
+                title="Batch fetch live prices for every company passing the filter."
+                hx-post="/market-data/refresh?scope=all{{ '&' ~ query_string if query_string else '' }}"
+                hx-target="#results" hx-swap="innerHTML" hx-indicator="#market-loading">
+          Refresh All
+        </button>
+        {% else %}
+        <button class="btn btn--secondary btn--sm"
+                title="One live call per company — can be slow for large result sets."
+                hx-post="/market-data/refresh?scope=all{{ '&' ~ query_string if query_string else '' }}"
+                hx-target="#results" hx-swap="innerHTML" hx-indicator="#market-loading">
+          Refresh All (slow)
+        </button>
+        {% endif %}
+
+        {# Toggle extra columns #}
+        <button class="btn btn--ghost btn--sm" onclick="
+          document.querySelectorAll('.col-extra').forEach(td => td.classList.toggle('hidden'));
+          this.textContent = this.textContent === 'More cols' ? 'Fewer cols' : 'More cols';
+        ">More cols</button>
+        {# Export #}
+        <a class="btn btn--primary btn--sm" href="/export{{ '?' ~ query_string if query_string else '' }}">Export CSV</a>
+      </div>
+    </div>
+
+    {# Loading indicator #}
+    <div id="market-loading" class="market-loading-banner htmx-indicator">
+      <span class="spinner"></span> Loading market data…
+    </div>
+
+    {# Results injected here via HTMX #}
+    <div id="results">
+      {% include '_results_table.html' %}
+    </div>
+    {# Loading skeleton shown during HTMX requests #}
+    <div id="results-loading" class="htmx-indicator space-y-3">
+      <div class="skeleton h-8 w-full rounded-lg"></div>
+      <div class="skeleton h-6 w-full rounded-lg"></div>
+      <div class="skeleton h-6 w-full rounded-lg"></div>
+      <div class="skeleton h-6 w-full rounded-lg"></div>
+    </div>
+  </section>
+</div>
+
+<script>
+  // Warn when DCF assumptions are internally inconsistent
+  function checkDcfParams() {
+    const discountEl = document.querySelector('input[name="discount_rate"]');
+    const terminalEl = document.querySelector('input[name="terminal_growth_rate"]');
+    const warningEl = document.getElementById('dcf-warning');
+    if (!discountEl || !terminalEl || !warningEl) return;
+    const discount = parseFloat(discountEl.value) / 100;
+    const terminal = parseFloat(terminalEl.value) / 100;
+    if (discount <= terminal) {
+      warningEl.classList.remove('hidden');
+    } else {
+      warningEl.classList.add('hidden');
+    }
+  }
+
+  // Check on initial load in case defaults are invalid
+  document.addEventListener('DOMContentLoaded', checkDcfParams);
+</script>
+{% endblock %}

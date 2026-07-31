@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="space-y-6">
+
+  {# ======================================================================= #}
+  {# Company header                                                          #}
+  {# ======================================================================= #}
+  <div class="flex flex-wrap items-start justify-between gap-4">
+    <div>
+      <h2 class="text-2xl font-bold text-surface-900 tracking-tight">
+        {{ company.get('Name') or company.get('name') or 'Company Detail' }}
+      </h2>
+      <p class="text-[13px] text-surface-500 mt-1">
+        <span class="font-mono">CIK {{ company.get('CIK') or company.get('cik') or '—' }}</span>
+        {% if sector_label %}<span class="u-sep">·</span>{{ sector_label }}{% endif %}
+        {% if company.get('Ticker') %}
+        <span class="u-sep">·</span>
+        <span class="font-mono font-semibold text-sky-700">{{ company.get('Ticker') }}</span>
+        {% endif %}
+      </p>
+    </div>
+    <div class="flex items-center gap-2">
+      {% if on_watchlist %}
+      <span class="badge badge--warn">★ On watchlist</span>
+      {% endif %}
+      <a class="btn btn--secondary btn--sm" href="{{ back_link }}">← Back to screen</a>
+    </div>
+  </div>
+
+  {% if error %}
+  <div class="card card--error text-sm text-negative-700">{{ error }}</div>
+  {% endif %}
+
+  {# TTM basis — explains how TTM was constructed #}
+  {% if ttm_basis %}
+  <div class="rounded-lg border border-sky-100 bg-sky-50 px-4 py-2.5 text-xs text-sky-800 font-mono">
+    {{ ttm_basis }}
+  </div>
+  {% endif %}
+
+  {# ======================================================================= #}
+  {# Red flags — computed from annual (10-K) data only                       #}
+  {# ======================================================================= #}
+  {% if red_flags %}
+  <div class="card card--error">
+    <h3 class="text-sm font-semibold text-negative-700 mb-2">⚠ Red Flags</h3>
+    <ul class="flag-list">
+      {% for flag in red_flags %}
+      <li>{{ flag }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  {# ======================================================================= #}
+  {# TTM Summary — grouped key/value cards                                   #}
+  {# ======================================================================= #}
+  <div class="grid gap-6 lg:grid-cols-2">
+    {% for heading, items in groups.items() %}
+    <div class="card">
+      <h3 class="text-xs font-semibold uppercase tracking-widest text-surface-400 mb-4">{{ heading }}</h3>
+      <div class="detail-group">
+        {% for key, value in items %}
+        <div class="detail-row">
+          <span class="detail-row__key">{{ key }}</span>
+          <span class="detail-row__value">{{ value }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {# ======================================================================= #}
+  {# Multi-year Trend — annual (10-K) filings only for clean YoY comparison  #}
+  {# ======================================================================= #}
+  {% if trend_rows %}
+  <div class="card">
+    <h3 class="text-base font-semibold text-surface-900 mb-1">Multi-year trend</h3>
+    <p class="text-[12px] text-surface-500 mb-4">Annual 10-K filings, most recent first. Clean year-over-year comparison without quarterly noise.</p>
+    <div class="table-scroll">
+      <table class="trend-table min-w-[800px]">
+        <thead>
+          <tr>
+            <th>Period</th>
+            <th>Form</th>
+            {% for m in trend_metrics %}
+            <th>{{ m }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in trend_rows %}
+          <tr>
+            <td class="trend-period">{{ r.period }}</td>
+            <td class="trend-form">{{ r.form }}{% if r.fp %} ({{ r.fp }}){% endif %}</td>
+            {% for m in trend_metrics %}
+            <td class="font-mono tabular-nums">{{ r.metrics[m] }}</td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ======================================================================= #}
+  {# Footnotes & Disclosures — HTMX lazy-loaded so it doesn't block the      #}
+  {# initial page render (notes data can be large and is optional).          #}
+  {# ======================================================================= #}
+  <div class="card"
+       hx-get="/company/{{ company.get('CIK') or company.get('cik') or '' }}/footnotes"
+       hx-trigger="load"
+       hx-swap="innerHTML">
+    <div class="flex items-center gap-3">
+      <span class="spinner htmx-indicator"></span>
+      <span class="text-sm text-surface-500">Loading footnotes &amp; disclosures…</span>
+    </div>
+  </div>
+
+  {# ======================================================================= #}
+  {# Insider Trading — HTMX lazy-loaded.  Shows recent insider buys/sells     #}
+  {# classified as Routine vs Opportunistic (Cohen, Malloy & Pomorski 2010).  #}
+  {# ======================================================================= #}
+  <div class="card"
+       hx-get="/company/{{ company.get('CIK') or company.get('cik') or '' }}/insider-trades"
+       hx-trigger="load"
+       hx-swap="innerHTML">
+    <div class="flex items-center gap-3">
+      <span class="spinner htmx-indicator"></span>
+      <span class="text-sm text-surface-500">Loading insider trading data…</span>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# IDE & editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Claude
+.claude/
+
+# App runtime data (gitignored — user data, not source)
+cache/
+data/
+
+# Secrets
+.env
+
+# macOS
+.DS_Store
+
+# Tracking files
+IMPROVEMENTS.md

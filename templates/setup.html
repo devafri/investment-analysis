@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="mx-auto max-w-2xl card">
+  <h2 class="text-2xl font-bold text-surface-900 tracking-tight">Load SEC Data</h2>
+  <p class="mt-2 text-[13px] text-surface-600 leading-relaxed">
+    Point the app at a folder of SEC DERA quarterly ZIP files (or a single ZIP, or an already-unzipped folder).
+    Every ingest pulls both 10-K and 10-Q filings and adds them to your accumulated history — run this once per
+    quarterly download you want included, and prior quarters stay cached (they're not overwritten).
+  </p>
+
+  {% if error %}
+  <div class="mt-4 card card--error text-sm text-negative-700 whitespace-pre-line">{{ error }}</div>
+  {% endif %}
+
+  <form hx-post="/ingest" hx-target="#ingest-progress" hx-swap="innerHTML" class="mt-6 space-y-5">
+    {# Data dir #}
+    <div>
+      <label class="block text-[13px] font-medium text-surface-700 mb-1.5" for="data_dir">Data folder or ZIP file</label>
+      <input id="data_dir" name="data_dir" type="text" value="{{ data_dir }}"
+             class="input-text font-mono" placeholder="./data" />
+      <p class="mt-1.5 text-[11px] text-surface-500">
+        A single ZIP, a folder containing one ZIP, or a folder containing several quarterly ZIPs — all of them will be ingested and accumulated in one go.
+      </p>
+    </div>
+
+    {# File picker #}
+    <div>
+      <label class="block text-[13px] font-medium text-surface-700 mb-1.5" for="data_file">Available files</label>
+      <select id="data_file" name="data_file" class="input-select"
+              onchange="document.getElementById('data_dir').value = '{{ data_dir }}' + '/' + this.value">
+        <option value="">Select a file (optional)</option>
+        {% for file_name in available_files %}
+        <option value="{{ file_name }}">{{ file_name }}</option>
+        {% endfor %}
+      </select>
+      <p class="mt-1.5 text-[11px] text-surface-500">
+        Picking a file targets just that single ZIP — leave blank and use the folder path above to ingest everything at once.
+      </p>
+    </div>
+
+    <button type="submit" class="btn btn--primary">Ingest and continue</button>
+  </form>
+
+  {# Progress target #}
+  <div id="ingest-progress" class="mt-6"></div>
+
+  {# Schwab Connection — web-based OAuth flow #}
+  <div class="mt-8 pt-6 border-t border-surface-200">
+    <h3 class="text-sm font-semibold text-surface-700 mb-3">Schwab Market Data</h3>
+
+    {% if schwab_status is defined and schwab_status.connected %}
+    <div class="flex items-center justify-between rounded-lg border border-positive-200 bg-positive-50 px-4 py-3">
+      <div>
+        <span class="inline-flex items-center gap-1.5 text-[13px] font-semibold text-positive-700">
+          <span class="w-2 h-2 rounded-full bg-positive-500"></span>
+          Connected
+        </span>
+        <p class="text-[11px] text-positive-600 mt-0.5">{{ schwab_status.detail }}</p>
+      </div>
+      <button class="btn btn--secondary btn--sm"
+              onclick="document.getElementById('schwab-form').classList.toggle('hidden')">
+        Reconnect
+      </button>
+    </div>
+    {% else %}
+    <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 mb-3">
+      <p class="text-[13px] text-amber-800">
+        <strong>Not connected.</strong> Screening works without Schwab, but live market data
+        (prices, multiples, margin of safety) needs it. Enter your app credentials below.
+      </p>
+    </div>
+    {% endif %}
+
+    <form id="schwab-form"
+          class="mt-3 space-y-3 {{ 'hidden' if schwab_status is defined and schwab_status.connected else '' }}"
+          action="/schwab/authorize" method="POST">
+      <div>
+        <label class="block text-[12px] font-medium text-surface-600 mb-1" for="schwab-client-id">
+          Client ID (App Key)
+        </label>
+        <input id="schwab-client-id" name="client_id" type="text"
+               class="input-text font-mono text-xs"
+               placeholder="Your Schwab app key" />
+      </div>
+      <div>
+        <label class="block text-[12px] font-medium text-surface-600 mb-1" for="schwab-client-secret">
+          Client Secret
+        </label>
+        <input id="schwab-client-secret" name="client_secret" type="password"
+               class="input-text font-mono text-xs"
+               placeholder="Your Schwab app secret" />
+      </div>
+      <div>
+        <label class="block text-[12px] font-medium text-surface-600 mb-1" for="schwab-redirect-uri">
+          Redirect URI
+        </label>
+        <input id="schwab-redirect-uri" name="redirect_uri" type="text"
+               class="input-text font-mono text-xs"
+               value="http://127.0.0.1:8000/schwab/callback"
+               placeholder="http://127.0.0.1:8000/schwab/callback" />
+        <p class="mt-1 text-[11px] text-surface-400">
+          Make sure this exact URI is registered in your Schwab app settings.
+        </p>
+      </div>
+      <button type="submit" class="btn btn--primary btn--sm">
+        Connect to Schwab
+      </button>
+    </form>
+  </div>
+
+  {# TTM info #}
+  <div class="mt-5 rounded-lg border border-sky-100 bg-sky-50 px-4 py-3 text-[12px] text-sky-800 leading-relaxed">
+    <strong>For trailing-twelve-month (TTM) figures</strong>, ingest enough consecutive quarters to include:
+    the most recent 10-K, the most recent 10-Q after it, and a 10-Q from one fiscal year before that
+    (same fiscal quarter) — typically 4–5 quarterly ZIPs. Companies with insufficient history will show
+    which piece is missing on their detail page rather than a wrong number.
+  </div>
+
+  <div class="mt-3 rounded-lg border border-sky-100 bg-sky-50 px-4 py-3 text-[12px] text-sky-800 leading-relaxed">
+    <strong>Insider trading data</strong> is automatically detected and ingested from the same directory.
+    Place SEC EDGAR insider-transaction ZIP files (containing NONDERIV_TRANS.txt, SUBMISSION.txt,
+    REPORTINGOWNER.txt) alongside your quarterly data and they'll be classified as Routine vs
+    Opportunistic automatically.
+  </div>
+
+  {# Ingest log #}
+  {% if ingest_log %}
+  <div class="mt-6">
+    <h3 class="text-sm font-semibold text-surface-700 mb-2">Previously ingested</h3>
+    <div class="table-scroll rounded-lg border border-surface-200">
+      <table class="data-table min-w-[400px]">
+        <thead>
+          <tr>
+            <th>Source</th>
+            <th>Filings</th>
+            <th>Ingested at</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for entry in ingest_log %}
+          <tr>
+            <td class="font-mono text-xs text-surface-700">{{ entry.source_name }}</td>
+            <td class="font-mono tabular-nums text-surface-600">{{ entry.filings_added }}</td>
+            <td class="text-xs text-surface-500">{{ entry.ingested_at }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  {# Reset — clear all cached data and start fresh #}
+  <div class="mt-8 pt-6 border-t border-surface-200">
+    <div class="flex items-center justify-between">
+      <div>
+        <h3 class="text-sm font-semibold text-surface-700">Reset cached data</h3>
+        <p class="text-[12px] text-surface-500 mt-0.5">
+          Clears all fundamentals, market data, watchlist, and logs.
+          Re-ingest your quarterly ZIPs afterwards.
+        </p>
+      </div>
+      <button class="btn btn--danger btn--sm"
+              hx-post="/setup/reset"
+              hx-target="#reset-result"
+              hx-swap="innerHTML"
+              hx-confirm="This will delete ALL cached screening data. You will need to re-ingest all quarterly ZIPs. Continue?">
+        Reset All Data
+      </button>
+    </div>
+    <div id="reset-result"></div>
+  </div>
+</div>
+{% endblock %}

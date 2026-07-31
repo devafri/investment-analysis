@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Schwab Connection</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f8fafc; color: #334155; display: flex;
+      align-items: center; justify-content: center; min-height: 100vh;
+    }
+    .card {
+      background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+      padding: 32px 40px; max-width: 480px; text-align: center;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .icon { font-size: 36px; margin-bottom: 16px; }
+    h2 { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+    p { font-size: 14px; color: #64748b; line-height: 1.6; }
+    .success h2 { color: #059669; }
+    .success .icon { color: #10b981; }
+    .error h2 { color: #e11d48; }
+    .error .icon { color: #f43f5e; }
+    a {
+      display: inline-block; margin-top: 20px; padding: 10px 24px;
+      background: #0f172a; color: #fff; border-radius: 8px;
+      font-size: 14px; font-weight: 500; text-decoration: none;
+    }
+    a:hover { background: #1e293b; }
+  </style>
+</head>
+<body>
+  <div class="card {{ 'success' if success else 'error' }}">
+    <div class="icon">{{ '✓' if success else '✗' }}</div>
+    <h2>{{ 'Connected' if success else 'Connection Failed' }}</h2>
+    <p>{{ message }}</p>
+    <a href="/setup">← Back to Setup</a>
+  </div>
+</body>
+</html>

@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="space-y-6">
+
+  {# ======================================================================= #}
+  {# Page header                                                             #}
+  {# ======================================================================= #}
+  <div>
+    <h2 class="text-2xl font-bold text-surface-900 tracking-tight">Insider Trading</h2>
+    <p class="text-[13px] text-surface-500 mt-1">
+      SEC EDGAR insider transactions classified as Routine vs Opportunistic
+      using the Cohen, Malloy &amp; Pomorski (2010) algorithm.
+    </p>
+  </div>
+
+  {% if error and not summary %}
+  <div class="card card--warning text-sm text-amber-700 mb-4">{{ error }}</div>
+
+  {# No data yet — show ingest form directly on this page #}
+  <div class="card">
+    <h3 class="text-base font-semibold text-surface-900 mb-3">Ingest Insider Trading Data</h3>
+    <p class="text-[13px] text-surface-500 mb-4">
+      Point to a directory containing SEC EDGAR insider-transaction ZIP files
+      (named like <code class="text-xs bg-surface-100 px-1 rounded">2016q1_form345.zip</code>).
+      Files must contain NONDERIV_TRANS.txt, SUBMISSION.txt, and REPORTINGOWNER.txt.
+    </p>
+    <form hx-post="/insider/ingest" hx-target="#insider-ingest-result" hx-swap="innerHTML"
+          class="flex items-end gap-3">
+      <div class="flex-1">
+        <label class="block text-[12px] font-medium text-surface-600 mb-1" for="insider-dir">
+          Data directory
+        </label>
+        <input id="insider-dir" name="data_dir" type="text" required
+               class="input-text font-mono text-xs" placeholder="./data" />
+      </div>
+      <button type="submit" class="btn btn--primary btn--sm whitespace-nowrap">
+        Ingest Insider Data
+      </button>
+    </form>
+    <div id="insider-ingest-result" class="mt-4"></div>
+  </div>
+  {% endif %}
+
+  {% if summary %}
+  {# ======================================================================= #}
+  {# Aggregate summary stat cards                                            #}
+  {# ======================================================================= #}
+  <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+    <div class="stat-card">
+      <div class="stat-card__label">Total trades</div>
+      <div class="stat-card__value">{{ summary.total | int }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-card__label">Opportunistic</div>
+      <div class="stat-card__value text-negative-600">{{ summary.opp | int }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-card__label">Routine</div>
+      <div class="stat-card__value text-surface-500">{{ summary.routine | int }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-card__label">Opp Buys</div>
+      <div class="stat-card__value text-positive-600">{{ summary.opp_buys | int }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-card__label">Opp Sells</div>
+      <div class="stat-card__value text-negative-600">{{ summary.opp_sells | int }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-card__label">Insiders</div>
+      <div class="stat-card__value">{{ summary.insiders | int }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-card__label">Companies</div>
+      <div class="stat-card__value">{{ summary.firms | int }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-card__label">Date range</div>
+      <div class="stat-card__value text-xs">
+        {% if summary.first_date %}{{ summary.first_date }}{% endif %}
+        {% if summary.last_date %}–{{ summary.last_date }}{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="grid gap-6 lg:grid-cols-[1fr_300px]">
+    {# =================================================================== #}
+    {# Trade search & results                                              #}
+    {# =================================================================== #}
+    <div class="space-y-4 min-w-0">
+      {# Filter bar #}
+      <div class="card">
+        <form id="insider-search-form"
+              hx-get="/insider/search" hx-trigger="submit, change delay:200ms"
+              hx-target="#insider-results" hx-swap="innerHTML"
+              class="flex flex-wrap items-end gap-3">
+          <div class="flex-1 min-w-[180px]">
+            <label class="block text-[11px] font-semibold uppercase tracking-wider text-surface-400 mb-1">
+              Search
+            </label>
+            <input type="search" name="search" value="{{ search }}"
+                   class="input-text text-xs py-1.5"
+                   placeholder="Ticker, insider name, or CIK…" />
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold uppercase tracking-wider text-surface-400 mb-1">
+              Classification
+            </label>
+            <select name="trade_type" class="input-select text-xs py-1.5">
+              <option value="" {% if not trade_type %}selected{% endif %}>All</option>
+              <option value="OPPORTUNISTIC" {% if trade_type == 'OPPORTUNISTIC' %}selected{% endif %}>Opportunistic</option>
+              <option value="ROUTINE" {% if trade_type == 'ROUTINE' %}selected{% endif %}>Routine</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-[11px] font-semibold uppercase tracking-wider text-surface-400 mb-1">
+              Direction
+            </label>
+            <select name="code" class="input-select text-xs py-1.5">
+              <option value="" {% if not code %}selected{% endif %}>All</option>
+              <option value="P" {% if code == 'P' %}selected{% endif %}>Buy</option>
+              <option value="S" {% if code == 'S' %}selected{% endif %}>Sell</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn--secondary btn--sm">Filter</button>
+        </form>
+      </div>
+
+      {# Results table #}
+      <div id="insider-results">
+        {% include '_insider_trade_rows.html' %}
+      </div>
+    </div>
+
+    {# =================================================================== #}
+    {# Top companies sidebar                                               #}
+    {# =================================================================== #}
+    <aside class="space-y-4">
+      <div class="card">
+        <h3 class="text-xs font-semibold uppercase tracking-widest text-surface-400 mb-3">
+          Top Companies by Insider Activity
+        </h3>
+        {% if top_companies %}
+        <div class="space-y-2">
+          {% for c in top_companies[:15] %}
+          <div class="flex items-center justify-between text-[13px]">
+            <div class="min-w-0 flex-1">
+              <a href="/company/{{ c.issuer_cik }}" class="text-surface-800 hover:text-sky-700 font-medium truncate block">
+                {{ c.company_name }}
+              </a>
+              {% if c.ticker %}
+              <span class="text-[11px] text-surface-400 font-mono">{{ c.ticker }}</span>
+              {% endif %}
+            </div>
+            <div class="flex items-center gap-2 text-xs tabular-nums shrink-0 ml-2">
+              <span class="text-positive-600 font-semibold">{{ c.opp_buys }} buys</span>
+              <span class="text-negative-600">{{ c.opp_sells }} sells</span>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-xs text-surface-400 italic">No data available.</p>
+        {% endif %}
+      </div>
+
+      {# Methodology note #}
+      <div class="rounded-lg border border-sky-100 bg-sky-50 px-4 py-3 text-[11px] text-sky-800 leading-relaxed">
+        <strong>Methodology</strong><br />
+        An insider is <strong>Routine</strong> if they traded in the same calendar month
+        in ≥3 unique years. All other trades are <strong>Opportunistic</strong>.
+        Research shows opportunistic trades predict future stock returns;
+        routine trades do not.<br /><br />
+        <em>Cohen, Malloy &amp; Pomorski (2010)</em>
+      </div>
+    </aside>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

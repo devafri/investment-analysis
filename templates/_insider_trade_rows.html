@@ -1,0 +1,85 @@
+{# HTMX partial — trade rows for /insider/search.  Replaces #insider-results. #}
+
+{% if not trades %}
+<div class="card">
+  <p class="text-sm text-surface-500 italic text-center py-6">
+    No insider trades match the current filters.
+  </p>
+</div>
+{% else %}
+<div class="card p-0 overflow-hidden">
+  <div class="table-scroll">
+    <table class="data-table min-w-[800px]">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Company</th>
+          <th>Insider</th>
+          <th>Role</th>
+          <th>Direction</th>
+          <th>Shares</th>
+          <th>Price</th>
+          <th>Classification</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in trades %}
+        <tr>
+          <td class="text-xs whitespace-nowrap text-surface-500">{{ t.date }}</td>
+          <td>
+            <a href="/company/{{ t.issuer_cik }}"
+               class="font-medium text-surface-800 hover:text-sky-700 no-underline">
+              {{ t.company_name }}
+            </a>
+            {% if t.ticker %}
+            <span class="text-[11px] text-surface-400 font-mono ml-1">{{ t.ticker }}</span>
+            {% endif %}
+          </td>
+          <td class="text-sm text-surface-800">{{ t.insider_name }}</td>
+          <td class="text-xs text-surface-500">{{ t.insider_role }}</td>
+          <td>
+            <span class="badge {{ 'badge--positive' if t.code == 'Buy' else 'badge--negative' }}">
+              {{ t.code }}
+            </span>
+          </td>
+          <td class="font-mono tabular-nums text-xs text-surface-700">{{ t.shares }}</td>
+          <td class="font-mono tabular-nums text-xs text-surface-700">{{ t.price }}</td>
+          <td>
+            {% if t.trade_type == 'Opportunistic' %}
+            <span class="text-xs text-negative-700 font-semibold"
+                  title="{{ t.routine_years }} unique year(s) in this calendar month">
+              Opportunistic
+            </span>
+            {% else %}
+            <span class="text-xs text-surface-400"
+                  title="{{ t.routine_years }} unique year(s) in this calendar month">
+              Routine ({{ t.routine_years }}yr)
+            </span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{# Simple pagination #}
+<div class="flex items-center justify-between text-[13px] text-surface-600 mt-3">
+  <span>Showing {{ trades|length }} trades</span>
+  <div class="flex gap-1">
+    {% if page > 1 %}
+    <button class="btn btn--secondary btn--sm"
+            hx-get="/insider/search?search={{ search }}&trade_type={{ trade_type }}&code={{ code }}&page={{ page - 1 }}"
+            hx-target="#insider-results" hx-swap="innerHTML">
+      ← Prev
+    </button>
+    {% endif %}
+    <button class="btn btn--secondary btn--sm"
+            hx-get="/insider/search?search={{ search }}&trade_type={{ trade_type }}&code={{ code }}&page={{ page + 1 }}"
+            hx-target="#insider-results" hx-swap="innerHTML">
+      Next →
+    </button>
+  </div>
+</div>
+{% endif %}
