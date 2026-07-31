@@ -1102,23 +1102,30 @@ def enrich_trades_with_prices(
 
         if current_price and trade_price_raw and trade_price_raw > 0:
             # Absolute return
-            total_return = (current_price / trade_price_raw) - 1
+            abs_return = (current_price / trade_price_raw) - 1
 
-            # Annualize using the trade date
+            # CAGR = (1 + abs_return) ^ (365 / holding_days) - 1
+            # Filter trades held < 30 days to prevent mathematical distortion
+            # (a 1% gain over 2 days would annualize to ~500%, which is noise)
             trade_date_str = t.get("trade_date_raw", "")
             try:
                 trade_dt = _dt.strptime(trade_date_str, "%Y-%m-%d")
-                years = (now - trade_dt).days / 365.25
-                if years > 0.02:  # at least ~1 week
-                    annualized = ((1 + total_return) ** (1.0 / years)) - 1
+                holding_days = (now - trade_dt).days
+                if holding_days >= 30:
+                    annualized = (
+                        (1 + abs_return) ** (365.0 / holding_days)
+                    ) - 1
                     t["gain_loss_pct"] = round(annualized * 100, 1)
-                    t["hold_years"] = round(years, 1)
-                else:
-                    # Too recent to annualize meaningfully
-                    t["gain_loss_pct"] = round(total_return * 100, 1)
+                    t["hold_years"] = round(holding_days / 365.0, 1)
+                elif holding_days >= 1:
+                    # Too recent to annualize — show absolute return
+                    t["gain_loss_pct"] = round(abs_return * 100, 1)
                     t["hold_years"] = 0.0
+                else:
+                    t["gain_loss_pct"] = None
+                    t["hold_years"] = None
             except (ValueError, TypeError):
-                t["gain_loss_pct"] = round(total_return * 100, 1)
+                t["gain_loss_pct"] = round(abs_return * 100, 1)
                 t["hold_years"] = None
         else:
             t["gain_loss_pct"] = None
