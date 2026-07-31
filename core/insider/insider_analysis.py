@@ -94,7 +94,7 @@ def _cache_key(df: pd.DataFrame) -> int:
 # ===================================================================
 
 
-def _normalize_columns(df: pd.DataFrame, file_label: str) -> pd.DataFrame:
+def _normalize_columns(df: pd.DataFrame, _file_label: str = "") -> pd.DataFrame:
     """Rename columns from SEC files to our canonical names.
 
     SEC Form 3/4/5 data uses names like ``TRANSACTION_DATE`` and
@@ -274,26 +274,49 @@ def load_and_process_data(
                 logger.warning("%s: no transactions — skipping", label)
                 continue
 
-            # --- Filter to open-market purchases & sales only ---
-            trans = trans[
-                trans["TRANSACTION_CODE"].str.strip().str.upper()
-                .isin(VALID_TRANSACTION_CODES)
-            ].copy()
-            if trans.empty:
+            n_raw = len(trans)
+            if n_raw == 0:
                 continue
 
-            # --- Parse dates & numeric columns ---
+            # --- Filter to open-market purchases & sales only ---
+            trans_codes = trans["TRANSACTION_CODE"].str.strip().str.upper()
+            trans = trans[trans_codes.isin(VALID_TRANSACTION_CODES)].copy()
+            n_after_code = len(trans)
+            if n_after_code == 0:
+                logger.info(
+                    "  %s: %,d rows, 0 after code filter "
+                    "(unique codes: %s)",
+                    label, n_raw,
+                    ", ".join(sorted(set(trans_codes.dropna()))),
+                )
+                continue
+
+            # --- Parse dates (try multiple formats) ---
+            date_strs = trans["TRANS_DATE"].str.strip()
             trans["TRANS_DATE"] = pd.to_datetime(
-                trans["TRANS_DATE"].str.strip(), format="%d-%b-%Y",
-                errors="coerce",
+                date_strs, format="%d-%b-%Y", errors="coerce",
             )
+            # If most dates failed, try 2-digit year variant
+            na_date_pct = trans["TRANS_DATE"].isna().mean()
+            if na_date_pct > 0.5:
+                trans["TRANS_DATE"] = trans["TRANS_DATE"].fillna(
+                    pd.to_datetime(date_strs, format="%d-%b-%y", errors="coerce")
+                )
             trans["TRANS_SHARES"] = pd.to_numeric(
                 trans["TRANS_SHARES"], errors="coerce",
             )
             trans["TRANS_PRICEPERSHARE"] = pd.to_numeric(
                 trans["TRANS_PRICEPERSHARE"], errors="coerce",
             )
+            n_before_drop = len(trans)
             trans = trans.dropna(subset=["TRANS_DATE", "TRANS_SHARES"])
+            n_after_drop = len(trans)
+            if n_after_drop == 0 and n_before_drop > 0:
+                logger.info(
+                    "  %s: %,d rows after code filter, 0 after date/share parse",
+                    label, n_before_drop,
+                )
+                continue
 
             # --- Year filter (applied to trade dates, NOT filenames) ---
             trans_year = trans["TRANS_DATE"].dt.year

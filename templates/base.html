@@ -79,11 +79,13 @@
           <nav class="flex items-center gap-0.5">
             {% set current = request.url.path %}
             {% set links = [
-              ('/',         'Home'),
-              ('/screen',   'Screen'),
-              ('/insider',  'Insider'),
-              ('/watchlist','Watchlist'),
-              ('/setup',    'Setup'),
+              ('/',           'Home'),
+              ('/screen',     'Screen'),
+              ('/insider',    'Insider'),
+              ('/ideas',      'Ideas'),
+              ('/scuttlebutt','Scuttlebutt'),
+              ('/watchlist',  'Watchlist'),
+              ('/setup',      'Setup'),
             ] %}
             {% for href, label in links %}
             <a href="{{ href }}"

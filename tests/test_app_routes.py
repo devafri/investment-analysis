@@ -322,16 +322,14 @@ class TestMissingImports:
     def test_broken_import_message_is_actionable(self):
         """Simulate a broken import and verify the error message is
         specific and actionable, not generic."""
-        # We test this by checking the error message format directly
         try:
             import definitely_does_not_exist_xyz as foo
-        except ImportError as e:
+        except ImportError:
             msg = (
-                f"Failed to import core/sec_value_screen.py / providers/yfinance_provider.py: "
-                f"{type(e).__name__}: {e}"
+                "Failed to import core pipeline modules: "
+                "ModuleNotFoundError: No module named 'definitely_does_not_exist_xyz'"
             )
-            assert "core/sec_value_screen" in msg
-            assert "yfinance_provider" in msg
+            assert "ModuleNotFoundError" in msg
 
 
 # ---------------------------------------------------------------------------

@@ -1,19 +1,17 @@
-"""Joins live price/market-cap data (via yfinance) onto a screened
-DataFrame, to complete the Magic Formula's Earnings Yield component --
+"""Joins live price/market-cap data (via Schwab) onto a screened
+DataFrame, to complete the Magic Formula's Earnings Yield component —
 SEC's fundamentals data has no stock price at all.
 """
 
 import json
 import math
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FutureTimeoutError
 from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 
 from core.paths import MARKET_CACHE_PATH, TICKER_CACHE_PATH, ensure_cache_dir
 from providers.pipeline_imports import fetch_price_data, get_cik_ticker_map
-import config
 
 TICKER_CACHE_MAX_AGE_SECONDS = 24 * 60 * 60  # refresh once a day at most
 MIN_TICKER_ENTRIES = 100  # Fewer than this likely means a truncated/corrupt cache
@@ -258,10 +256,7 @@ def join_market_data(df: pd.DataFrame, overall_timeout_seconds: float = 25.0) ->
     if not index_to_ticker:
         return df, errors
 
-    if config.MARKET_DATA_PROVIDER == "schwab":
-        errors.extend(_fetch_via_schwab(df, index_to_ticker))
-    else:
-        errors.extend(_fetch_via_yfinance(df, index_to_ticker, overall_timeout_seconds))
+    errors.extend(_fetch_via_schwab(df, index_to_ticker))
 
     ranked_indices = df.index[df["EarningsYield"].notna()].tolist()
     ranked_indices = sorted(
@@ -277,46 +272,6 @@ def join_market_data(df: pd.DataFrame, overall_timeout_seconds: float = 25.0) ->
     if errors:
         MARKET_CACHE_PATH.write_text(json.dumps({"errors": errors}), encoding="utf-8")
     return df, errors
-
-
-def _fetch_via_yfinance(df: pd.DataFrame, index_to_ticker: Dict[Any, str], overall_timeout_seconds: float) -> List[str]:
-    """The original per-ticker, thread-pool-with-deadline approach. Kept as
-    its own function so join_market_data's provider branching stays readable."""
-    if fetch_price_data is None:
-        return ["yfinance helper is not available in this environment."]
-
-    errors: List[str] = []
-    pool = ThreadPoolExecutor(max_workers=8)
-    future_to_meta: Dict[Any, Tuple[Any, str]] = {}
-    try:
-        for index, ticker in index_to_ticker.items():
-            future = pool.submit(fetch_price_data, ticker)
-            future_to_meta[future] = (index, ticker)
-
-        try:
-            completed = as_completed(future_to_meta, timeout=overall_timeout_seconds)
-            for future in completed:
-                index, ticker = future_to_meta[future]
-                try:
-                    prices = future.result()
-                except Exception as exc:  # pragma: no cover - depends on live network
-                    row = df.loc[index] if index in df.index else None
-                    cik = (row.get("CIK") or row.get("cik") or "?") if row is not None else "?"
-                    errors.append(f"{ticker} [CIK {cik}]: {exc}")
-                    continue
-                _apply_price_result(df, index, prices, row=df.loc[index])
-        except FutureTimeoutError:
-            pending = [ticker for f, (_, ticker) in future_to_meta.items() if not f.done()]
-            if pending:
-                shown = ", ".join(pending[:10])
-                more = f" (+{len(pending) - 10} more)" if len(pending) > 10 else ""
-                errors.append(
-                    f"{len(pending)} ticker(s) did not respond within {overall_timeout_seconds:.0f}s "
-                    f"and were skipped: {shown}{more}"
-                )
-    finally:
-        pool.shutdown(wait=False)
-    return errors
 
 
 def _fetch_via_schwab(df: pd.DataFrame, index_to_ticker: Dict[Any, str]) -> List[str]:

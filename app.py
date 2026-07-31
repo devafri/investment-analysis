@@ -649,6 +649,76 @@ async def company_insider_trades(request: Request, cik: str) -> HTMLResponse:
 
 
 # ---------------------------------------------------------------------------
+# Scuttlebutt & Idea Pipeline
+# ---------------------------------------------------------------------------
+
+@app.get("/scuttlebutt", response_class=HTMLResponse)
+async def scuttlebutt_page(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse(
+        request, "strategies/scuttlebutt.html",
+        {"request": request, "schwab_status": get_connection_status()},
+    )
+
+
+@app.get("/ideas", response_class=HTMLResponse)
+async def idea_pipeline_page(request: Request) -> HTMLResponse:
+    """Triangulation page — rank companies by combined Value + Insider +
+    Scuttlebutt signals using the live fundamentals and insider data."""
+    from triangulation.ranker import rank_ideas
+
+    ideas = []
+    con = get_db_connection()
+    try:
+        # Value data: per-company passes from the screening engine
+        from core.fundamentals.screening import load_cached_ratios
+        try:
+            df = load_cached_ratios()
+            value_data = {}
+            if not df.empty:
+                cik_col = "cik" if "cik" in df.columns else "CIK"
+                name_col = "name" if "name" in df.columns else "Name"
+                for _, row in df.iterrows():
+                    cik_str = str(row.get(cik_col) or "").strip()
+                    if not cik_str:
+                        continue
+                    value_data[cik_str] = {
+                        "name": str(row.get(name_col, "")),
+                        "median_roic": float(row.get("ROIC") or 0),
+                        "total_passed": 1,
+                    }
+        except Exception:
+            value_data = {}
+
+        # Insider data: per-company summary
+        insider_data = {}
+        if hasattr(insider, 'has_insider_data') and insider.has_insider_data(con):
+            try:
+                all_ciks = con.execute(
+                    "SELECT DISTINCT issuer_cik FROM insider_trades"
+                ).fetchall()
+                for (issuer_cik,) in all_ciks:
+                    cik_str = str(issuer_cik).strip()
+                    if not cik_str:
+                        continue
+                    summ = insider.get_insider_summary_for_cik(cik_str, con)
+                    if summ.get("total_trades", 0) > 0:
+                        insider_data[cik_str] = summ
+            except Exception:
+                pass
+
+        # Rank ideas
+        ideas = rank_ideas(value_data, insider_data, {}, top_n=50)
+    finally:
+        con.close()
+
+    return templates.TemplateResponse(
+        request, "strategies/idea_pipeline.html",
+        {"request": request, "ideas": ideas,
+         "schwab_status": get_connection_status()},
+    )
+
+
+# ---------------------------------------------------------------------------
 # Insider Trading — standalone page
 # ---------------------------------------------------------------------------
 
