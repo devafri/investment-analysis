@@ -53,7 +53,7 @@ CANONICAL_COLS = [
 COLUMN_ALIASES = {
     "ACCESSION_NUMBER":     ["ACCESSION_NUMBER"],
     "TRANS_DATE":           ["TRANSACTION_DATE", "TRANS_DATE"],
-    "TRANSACTION_CODE":     ["TRANSACTION_CODE"],
+    "TRANSACTION_CODE":     ["TRANS_CODE", "TRANSACTION_CODE"],
     "TRANS_SHARES":         ["TRANSACTION_SHARES", "TRANS_SHARES"],
     "TRANS_PRICEPERSHARE":  ["TRANSACTION_PRICE_PER_SHARE", "TRANS_PRICEPERSHARE"],
     "TRANS_ACQUIRED_DISP_CD": ["TRANSACTION_ACQUIRED_DISP_CD", "TRANS_ACQUIRED_DISP_CD"],
@@ -61,8 +61,8 @@ COLUMN_ALIASES = {
     "ISSUERTRADINGSYMBOL":  ["ISSUERTRADINGSYMBOL"],
     "RPTOWNERCIK":          ["RPTOWNERCIK"],
     "RPTOWNERNAME":         ["RPTOWNERNAME"],
-    "RPTOWNERRELATIONSHIP": ["RPTOWNERRELATIONSHIP"],
-    "RPTOWNERTITLE":        ["RPTOWNERTITLE"],
+    "RPTOWNERRELATIONSHIP": ["RPTOWNER_RELATIONSHIP", "RPTOWNERRELATIONSHIP"],
+    "RPTOWNERTITLE":        ["RPTOWNER_TITLE", "RPTOWNERTITLE"],
 }
 
 # Only open-market purchases and sales — no option exercises, grants, gifts.
@@ -118,24 +118,30 @@ def _normalize_columns(df: pd.DataFrame, _file_label: str = "") -> pd.DataFrame:
     return df
 
 
-def _read_sec_file(zip_archive: zipfile.ZipFile, filename: str,
-                   required: bool = True) -> pd.DataFrame:
-    """Read one tab-delimited file from a SEC quarterly ZIP.  Reads ALL
-    columns (different SEC datasets use different column names — we
-    normalise afterwards)."""
-    try:
-        with zip_archive.open(filename) as f:
+def _read_zipped_file(zip_archive: zipfile.ZipFile, basename: str) -> pd.DataFrame:
+    """Read a tab-delimited file from a ZIP, trying .tsv then .txt extension."""
+    for ext in (".tsv", ".txt"):
+        try:
+            with zip_archive.open(basename + ext) as f:
+                return pd.read_csv(
+                    f, sep="\t", dtype=str, encoding="latin-1", low_memory=False,
+                )
+        except KeyError:
+            continue
+    logger.warning("%s(.tsv|.txt) not found in %s",
+                   basename, os.path.basename(zip_archive.filename))
+    return pd.DataFrame()
+
+
+def _read_local_file(dirpath: Path, basename: str) -> pd.DataFrame:
+    """Read a tab-delimited file from a directory, trying .tsv then .txt."""
+    for ext in (".tsv", ".txt"):
+        filepath = dirpath / (basename + ext)
+        if filepath.exists():
             return pd.read_csv(
-                f, sep="\t", dtype=str, encoding="latin-1", low_memory=False,
+                filepath, sep="\t", dtype=str, encoding="latin-1", low_memory=False,
             )
-    except KeyError:
-        if required:
-            raise FileNotFoundError(
-                f"{filename} not found in {zip_archive.filename}"
-            )
-        logger.warning("%s not found in %s — skipping",
-                       filename, os.path.basename(zip_archive.filename))
-        return pd.DataFrame()
+    return pd.DataFrame()
 
 
 def _parse_quarter_from_filename(path: str) -> str:
@@ -150,18 +156,6 @@ def _parse_quarter_from_filename(path: str) -> str:
     if m:
         return m.group(1)
     return name.replace(".zip", "")
-
-
-def _safe_read_tsv(filepath: Path) -> pd.DataFrame:
-    """Read a TSV file from disk, returning empty DataFrame if not found."""
-    if not filepath.exists():
-        return pd.DataFrame()
-    try:
-        return pd.read_csv(
-            filepath, sep="\t", dtype=str, encoding="latin-1", low_memory=False,
-        )
-    except Exception:
-        return pd.DataFrame()
 
 
 def _find_data_sources(data_dir: str) -> List[Tuple[Path, str]]:
@@ -181,15 +175,19 @@ def _find_data_sources(data_dir: str) -> List[Tuple[Path, str]]:
     sources: List[Tuple[Path, str]] = []
     seen: set = set()
 
-    # 1 — data_dir itself (unzipped)
-    if (data_path / "NONDERIV_TRANS.txt").exists():
+    # 1 — data_dir itself (unzipped), .tsv or .txt
+    if (data_path / "NONDERIV_TRANS.tsv").exists() or \
+       (data_path / "NONDERIV_TRANS.txt").exists():
         label = _parse_quarter_from_filename(data_path.name)
         sources.append((data_path, label))
         seen.add(data_path)
 
-    # 2 — subdirectories with the TXT files
+    # 2 — subdirectories with the TXT/TSV files
     for sub in sorted(data_path.iterdir()):
-        if sub.is_dir() and (sub / "NONDERIV_TRANS.txt").exists():
+        if sub.is_dir() and (
+            (sub / "NONDERIV_TRANS.tsv").exists() or
+            (sub / "NONDERIV_TRANS.txt").exists()
+        ):
             label = _parse_quarter_from_filename(sub.name)
             sources.append((sub, label))
             seen.add(sub)
@@ -252,17 +250,14 @@ def load_and_process_data(
         logger.info("Processing %s …", label)
         try:
             if source_path.is_dir():
-                trans = pd.read_csv(
-                    source_path / "NONDERIV_TRANS.txt",
-                    sep="\t", dtype=str, encoding="latin-1", low_memory=False,
-                )
-                sub = _safe_read_tsv(source_path / "SUBMISSION.txt")
-                owners = _safe_read_tsv(source_path / "REPORTINGOWNER.txt")
+                trans = _read_local_file(source_path, "NONDERIV_TRANS")
+                sub = _read_local_file(source_path, "SUBMISSION")
+                owners = _read_local_file(source_path, "REPORTINGOWNER")
             else:
                 with zipfile.ZipFile(source_path) as zf:
-                    trans = _read_sec_file(zf, "NONDERIV_TRANS.txt")
-                    sub = _read_sec_file(zf, "SUBMISSION.txt")
-                    owners = _read_sec_file(zf, "REPORTINGOWNER.txt")
+                    trans = _read_zipped_file(zf, "NONDERIV_TRANS")
+                    sub = _read_zipped_file(zf, "SUBMISSION")
+                    owners = _read_zipped_file(zf, "REPORTINGOWNER")
 
             # Normalise column names (Form 3/4/5 uses TRANSACTION_DATE etc.,
             # DERA uses TRANS_DATE — we want the canonical names).
@@ -722,20 +717,35 @@ def persist_insider_trades(con, df: pd.DataFrame) -> int:
     if df.empty or "TRADE_TYPE" not in df.columns:
         return 0
 
-    cols = [
-        "ACCESSION_NUMBER", "TRANS_DATE", "TRANSACTION_CODE",
-        "TRANS_SHARES", "TRANS_PRICEPERSHARE", "ISSUERCIK",
-        "ISSUERTRADINGSYMBOL", "RPTOWNERCIK", "RPTOWNERNAME",
-        "RPTOWNERRELATIONSHIP", "RPTOWNERTITLE",
-        "TRADE_TYPE", "ROUTINE_YEARS", "QUARTER",
+    col_map = [
+        ("ACCESSION_NUMBER",     "accession_number"),
+        ("TRANS_DATE",           "trans_date"),
+        ("TRANSACTION_CODE",     "transaction_code"),
+        ("TRANS_SHARES",         "trans_shares"),
+        ("TRANS_PRICEPERSHARE",  "trans_price_per_share"),
+        ("ISSUERCIK",            "issuer_cik"),
+        ("ISSUERTRADINGSYMBOL",  "issuer_trading_symbol"),
+        ("RPTOWNERCIK",          "rpt_owner_cik"),
+        ("RPTOWNERNAME",         "rpt_owner_name"),
+        ("RPTOWNERRELATIONSHIP", "rpt_owner_relationship"),
+        ("RPTOWNERTITLE",        "rpt_owner_title"),
+        ("TRADE_TYPE",           "trade_type"),
+        ("ROUTINE_YEARS",        "routine_years"),
+        ("QUARTER",              "quarter"),
     ]
-    available = [c for c in cols if c in df.columns]
-    batch = df[available].copy()
+    available = [(src, dst) for src, dst in col_map if src in df.columns]
+    batch = df[[src for src, _ in available]].copy()
+    batch.columns = [dst for _, dst in available]
+
+    # Convert date strings to proper timestamps
+    if "trans_date" in batch.columns:
+        batch["trans_date"] = pd.to_datetime(batch["trans_date"], errors="coerce")
 
     con.register("_insider_batch", batch)
+    src_cols = ", ".join(f'"{c}"' for c in batch.columns)
     con.execute("""
         CREATE TABLE IF NOT EXISTS insider_trades (
-            accession_number VARCHAR PRIMARY KEY,
+            accession_number VARCHAR,
             trans_date TIMESTAMP,
             transaction_code VARCHAR,
             trans_shares DOUBLE,
@@ -751,10 +761,22 @@ def persist_insider_trades(con, df: pd.DataFrame) -> int:
             quarter VARCHAR
         )
     """)
+    # Dedup by quarter: if we already have rows for this quarter, skip
+    quarters_in_batch = batch["quarter"].dropna().unique().tolist()
+    if quarters_in_batch:
+        placeholders = ", ".join(["?"] * len(quarters_in_batch))
+        existing = con.execute(
+            f"SELECT COUNT(*) FROM insider_trades "
+            f"WHERE quarter IN ({placeholders})",
+            quarters_in_batch,
+        ).fetchone()[0]
+        if existing > 0:
+            return 0  # already ingested this quarter
+
     before = con.execute("SELECT COUNT(*) FROM insider_trades").fetchone()[0]
-    con.execute("""
-        INSERT OR IGNORE INTO insider_trades
-        SELECT * FROM _insider_batch
+    con.execute(f"""
+        INSERT INTO insider_trades ({src_cols})
+        SELECT {src_cols} FROM _insider_batch
     """)
     con.unregister("_insider_batch")
     after = con.execute("SELECT COUNT(*) FROM insider_trades").fetchone()[0]
