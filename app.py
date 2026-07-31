@@ -10,6 +10,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
+import numpy as np
 import pandas as pd
 
 from fastapi import FastAPI, Form, Request
@@ -884,6 +885,16 @@ def _format_insider_trade_rows(df: pd.DataFrame) -> list:
             trade_date = trade_date.strftime("%b %d, %Y")
         # Keep raw date for annualized gain/loss calculations
         raw_date = row.get("trans_date")
+        # Pick up SQL-computed current_price and gain_loss if present
+        def _safe_float(val):
+            try:
+                v = float(val)
+                return v if not np.isnan(v) else None
+            except (TypeError, ValueError):
+                return None
+
+        cp = _safe_float(row.get("current_price"))
+        gl = _safe_float(row.get("gain_loss_pct"))
         trades.append({
             "date": trade_date or "",
             "trade_date_raw": str(raw_date)[:10] if hasattr(raw_date, "strftime") else "",
@@ -894,6 +905,8 @@ def _format_insider_trade_rows(df: pd.DataFrame) -> list:
             "code": "Buy" if str(row.get("transaction_code") or "").strip().upper() == "P" else "Sell",
             "shares": formatting.fmt_number(row.get("trans_shares")),
             "price": formatting.fmt_currency(row.get("trans_price_per_share")),
+            "current_price": round(cp, 2) if cp is not None else None,
+            "gain_loss_pct": round(gl, 1) if gl is not None else None,
             "trade_type": str(row.get("trade_type") or "").title(),
             "routine_years": int(row.get("routine_years") or 0),
             "issuer_cik": str(row.get("issuer_cik") or ""),

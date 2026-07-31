@@ -933,6 +933,8 @@ _SORTABLE_COLUMNS = {
     "code": "it.transaction_code",
     "shares": "it.trans_shares",
     "price": "it.trans_price_per_share",
+    "current_price": "current_price",
+    "gain_loss": "gain_loss_pct",
     "type": "it.trade_type",
 }
 
@@ -980,17 +982,43 @@ def search_insider_trades(
             params.extend(list(exchange_ciks))
 
     where_clause = ("WHERE " + " AND ".join(where)) if where else ""
+    # Gain/loss formula in SQL: CAGR if held ≥1yr, else absolute return.
+    # DuckDB date subtraction gives days; POW() or ^ for exponentiation.
     query = f"""
         SELECT it.*,
                COALESCE(fh.name, it.issuer_trading_symbol,
-                        'CIK ' || it.issuer_cik) AS company_name
+                        'CIK ' || it.issuer_cik) AS company_name,
+               mp.price AS current_price,
+               CAST(
+                 CURRENT_DATE - CAST(it.trans_date AS DATE) AS INTEGER
+               ) AS holding_days,
+               CASE
+                 WHEN mp.price IS NULL OR it.trans_price_per_share IS NULL
+                      OR it.trans_price_per_share = 0
+                 THEN NULL
+                 WHEN CURRENT_DATE - CAST(it.trans_date AS DATE) >= 365 THEN
+                   ROUND(
+                     (POW(mp.price / it.trans_price_per_share,
+                          365.0 / GREATEST(
+                            CAST(CURRENT_DATE - CAST(it.trans_date AS DATE)
+                                 AS DOUBLE), 1.0
+                          )) - 1) * 100, 1
+                   )
+                 ELSE
+                   ROUND(
+                     (mp.price / it.trans_price_per_share - 1) * 100, 1
+                   )
+               END AS gain_loss_pct
         FROM insider_trades it
         LEFT JOIN (
             SELECT DISTINCT cik, name
             FROM fundamentals_history
         ) fh ON CAST(fh.cik AS VARCHAR) = it.issuer_cik
+        LEFT JOIN market_prices mp
+          ON LTRIM(CAST(mp.cik AS VARCHAR), '0') =
+             LTRIM(CAST(it.issuer_cik AS VARCHAR), '0')
         {where_clause}
-        ORDER BY {_SORTABLE_COLUMNS.get(sort, 'it.trans_date')} { 'ASC' if order == 'asc' else 'DESC' }
+        ORDER BY {_SORTABLE_COLUMNS.get(sort, 'it.trans_date')} {'ASC' if order == 'asc' else 'DESC'}
         LIMIT ? OFFSET ?
     """
     params.extend([limit, offset])
@@ -1099,12 +1127,22 @@ def enrich_trades_with_prices(
         except (ImportError, SchwabAuthError, Exception):
             pass  # Schwab not available — partial results are fine
 
-    # Apply to trades — compute annualized gain/loss
+    # Apply to trades — SQL already computed current_price and gain_loss_pct
+    # for rows with matching market_prices.  Only fill in Schwab prices for
+    # tickers that the market_prices table didn't have.
     from datetime import datetime as _dt
     now = _dt.now()
 
     for t in trades:
+        if t.get("current_price") is not None:
+            continue  # Already computed in SQL
+
         tk = t.get("ticker") or ""
+        current_price = price_map.get(str(tk))
+        if current_price is None:
+            continue
+
+        t["current_price"] = current_price
         trade_price_raw = None
         try:
             trade_price_raw = float(
@@ -1113,14 +1151,8 @@ def enrich_trades_with_prices(
         except (ValueError, TypeError):
             pass
 
-        current_price = price_map.get(str(tk))
-        t["current_price"] = current_price
-
-        if current_price and trade_price_raw and trade_price_raw > 0:
+        if trade_price_raw and trade_price_raw > 0:
             abs_return = (current_price / trade_price_raw) - 1
-
-            # Trades held < 1 year: show absolute return (annualizing would
-            # inflate short-term noise).  Trades held ≥ 1 year: show CAGR.
             trade_date_str = t.get("trade_date_raw", "")
             try:
                 trade_dt = _dt.strptime(trade_date_str, "%Y-%m-%d")
@@ -1134,15 +1166,8 @@ def enrich_trades_with_prices(
                 elif holding_days >= 1:
                     t["gain_loss_pct"] = round(abs_return * 100, 1)
                     t["hold_years"] = 0.0
-                else:
-                    t["gain_loss_pct"] = None
-                    t["hold_years"] = None
             except (ValueError, TypeError):
                 t["gain_loss_pct"] = round(abs_return * 100, 1)
-                t["hold_years"] = None
-        else:
-            t["gain_loss_pct"] = None
-            t["hold_years"] = None
 
     return trades
 

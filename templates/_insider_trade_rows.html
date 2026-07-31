@@ -35,8 +35,8 @@
           <th>{{ sort_link("code", "Dir") }}</th>
           <th>{{ sort_link("shares", "Shares") }}</th>
           <th>{{ sort_link("price", "Trade $") }}</th>
-          <th>Now $</th>
-          <th title="Absolute if held < 1 year, annualized CAGR if ≥ 1 year">Gain/Loss</th>
+          <th>{{ sort_link("current_price", "Now $") }}</th>
+          <th title="Absolute if held < 1 year, annualized CAGR if ≥ 1 year">{{ sort_link("gain_loss", "Gain/Loss") }}</th>
           <th>{{ sort_link("type", "Class") }}</th>
         </tr>
       </thead>
