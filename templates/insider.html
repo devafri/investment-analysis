@@ -124,6 +124,12 @@
               <option value="S" {% if code == 'S' %}selected{% endif %}>Sell</option>
             </select>
           </div>
+          <label class="filter-toggle flex items-center gap-1.5 text-xs text-surface-600 cursor-pointer">
+            <input type="checkbox" name="major_exchanges_only" value="on"
+                   {% if major_exchanges_only is not defined or major_exchanges_only %}checked{% endif %}
+                   onchange="this.form.dispatchEvent(new Event('change', {bubbles: true}))" />
+            <span>NYSE / Nasdaq only</span>
+          </label>
           <button type="submit" class="btn btn--secondary btn--sm">Filter</button>
         </form>
       </div>

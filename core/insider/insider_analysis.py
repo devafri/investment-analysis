@@ -900,6 +900,22 @@ def get_aggregate_summary(con) -> dict:
     }
 
 
+def _load_exchange_ciks(con) -> set:
+    """Return the set of CIKs listed on NYSE or Nasdaq.  Uses the cached
+    exchange_map.json (refreshed daily by the exchange_filter module)."""
+    try:
+        from core.fundamentals.exchange_filter import (
+            load_exchange_map, is_major_exchange,
+        )
+        exchange_map, _ = load_exchange_map()
+        if not exchange_map:
+            return set()
+        return {cik for cik, exch in exchange_map.items()
+                if is_major_exchange(exch)}
+    except Exception:
+        return set()
+
+
 def search_insider_trades(
     con,
     search: str = "",
@@ -907,6 +923,7 @@ def search_insider_trades(
     code: str = "",        # "P" (buy), "S" (sell), or "" for all
     limit: int = 100,
     offset: int = 0,
+    major_exchanges_only: bool = True,
 ) -> pd.DataFrame:
     """Search insider trades across all companies with optional filters.
     Returns trades joined with company names from fundamentals_history."""
@@ -930,6 +947,15 @@ def search_insider_trades(
         where.append("it.transaction_code = ?")
         params.append(code)
 
+    if major_exchanges_only:
+        exchange_ciks = _load_exchange_ciks(con)
+        if exchange_ciks:
+            placeholders = ", ".join(["?"] * len(exchange_ciks))
+            where.append(
+                f"CAST(it.issuer_cik AS VARCHAR) IN ({placeholders})"
+            )
+            params.extend(list(exchange_ciks))
+
     where_clause = ("WHERE " + " AND ".join(where)) if where else ""
     query = f"""
         SELECT it.*,
@@ -948,7 +974,10 @@ def search_insider_trades(
     return con.execute(query, params).fetchdf()
 
 
-def get_top_companies(con, by: str = "opp_trades", limit: int = 10) -> pd.DataFrame:
+def get_top_companies(
+    con, by: str = "opp_trades", limit: int = 10,
+    major_exchanges_only: bool = True,
+) -> pd.DataFrame:
     """Return companies ranked by insider activity."""
     metric = (
         "SUM(CASE WHEN trade_type = 'OPPORTUNISTIC' THEN 1 ELSE 0 END)"
@@ -958,6 +987,17 @@ def get_top_companies(con, by: str = "opp_trades", limit: int = 10) -> pd.DataFr
         "SUM(CASE WHEN trade_type = 'OPPORTUNISTIC' AND transaction_code = 'S' "
         "THEN 1 ELSE 0 END)"
     )
+    exchange_where = ""
+    if major_exchanges_only:
+        exchange_ciks = _load_exchange_ciks(con)
+        if exchange_ciks:
+            placeholders = ", ".join(["?"] * len(exchange_ciks))
+            exchange_where = (
+                f"WHERE CAST(it.issuer_cik AS VARCHAR) IN ({placeholders})"
+            )
+
+    params = list(_load_exchange_ciks(con)) if major_exchanges_only else []
+    params.append(limit)
     return con.execute(f"""
         SELECT
             it.issuer_cik,
@@ -975,7 +1015,8 @@ def get_top_companies(con, by: str = "opp_trades", limit: int = 10) -> pd.DataFr
         LEFT JOIN (
             SELECT DISTINCT cik, name FROM fundamentals_history
         ) fh ON CAST(fh.cik AS VARCHAR) = it.issuer_cik
+        {exchange_where}
         GROUP BY it.issuer_cik, fh.name
         ORDER BY sort_metric DESC
         LIMIT ?
-    """, [limit]).fetchdf()
+    """, params).fetchdf()

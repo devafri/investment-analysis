@@ -747,9 +747,16 @@ async def insider_page(request: Request) -> HTMLResponse:
                           "and re-run the main ingest from Setup."},
             )
 
+        major_only = request.query_params.get("major_exchanges_only", "1")
+        major_only = major_only in {"1", "on", "true", ""}
+
         summary = insider.get_aggregate_summary(con)
-        top = insider.get_top_companies(con, by="opp_trades", limit=10)
-        trades_df = insider.search_insider_trades(con, limit=50)
+        top = insider.get_top_companies(
+            con, by="opp_trades", limit=10, major_exchanges_only=major_only,
+        )
+        trades_df = insider.search_insider_trades(
+            con, limit=50, major_exchanges_only=major_only,
+        )
         trades = _format_insider_trade_rows(trades_df)
 
         return templates.TemplateResponse(
@@ -758,7 +765,7 @@ async def insider_page(request: Request) -> HTMLResponse:
              "top_companies": top.to_dict(orient="records"),
              "trades": trades, "schwab_status": get_connection_status(),
              "error": None, "search": "", "trade_type": "", "code": "",
-             "page": 1},
+             "page": 1, "major_exchanges_only": major_only},
         )
     except Exception as exc:
         return templates.TemplateResponse(
@@ -777,6 +784,8 @@ async def insider_search(request: Request) -> HTMLResponse:
     search = request.query_params.get("search", "")
     trade_type = request.query_params.get("trade_type", "")
     code = request.query_params.get("code", "")
+    major_only = request.query_params.get("major_exchanges_only", "1")
+    major_only = major_only in {"1", "on", "true", ""}
     page = max(1, int(request.query_params.get("page", 1)))
     limit = 50
     offset = (page - 1) * limit
@@ -791,6 +800,7 @@ async def insider_search(request: Request) -> HTMLResponse:
         df = insider.search_insider_trades(
             con, search=search, trade_type=trade_type, code=code,
             limit=limit, offset=offset,
+            major_exchanges_only=major_only,
         )
         trades = _format_insider_trade_rows(df)
     finally:
@@ -799,7 +809,8 @@ async def insider_search(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(
         request, "_insider_trade_rows.html",
         {"request": request, "trades": trades, "page": page,
-         "search": search, "trade_type": trade_type, "code": code},
+         "search": search, "trade_type": trade_type, "code": code,
+         "major_exchanges_only": major_only},
     )
 
 

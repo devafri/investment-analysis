@@ -70,13 +70,13 @@
   <div class="flex gap-1">
     {% if page > 1 %}
     <button class="btn btn--secondary btn--sm"
-            hx-get="/insider/search?search={{ search }}&trade_type={{ trade_type }}&code={{ code }}&page={{ page - 1 }}"
+            hx-get="/insider/search?search={{ search }}&trade_type={{ trade_type }}&code={{ code }}&major_exchanges_only={{ 'on' if (major_exchanges_only is not defined or major_exchanges_only) else '0' }}&page={{ page - 1 }}"
             hx-target="#insider-results" hx-swap="innerHTML">
       ← Prev
     </button>
     {% endif %}
     <button class="btn btn--secondary btn--sm"
-            hx-get="/insider/search?search={{ search }}&trade_type={{ trade_type }}&code={{ code }}&page={{ page + 1 }}"
+            hx-get="/insider/search?search={{ search }}&trade_type={{ trade_type }}&code={{ code }}&major_exchanges_only={{ 'on' if (major_exchanges_only is not defined or major_exchanges_only) else '0' }}&page={{ page + 1 }}"
             hx-target="#insider-results" hx-swap="innerHTML">
       Next →
     </button>
