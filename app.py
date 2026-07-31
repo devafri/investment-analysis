@@ -981,9 +981,81 @@ async def schwab_authorize(
         )
     state = save_pending_credentials(cid, csec, ruri)
     auth_url = build_authorization_url(cid, ruri)
-    # Append state so we can look up credentials on callback
+    # Append state so we can look up credentials on callback or paste
     separator = "&" if "?" in auth_url else "?"
-    return RedirectResponse(f"{auth_url}{separator}state={state}", status_code=302)
+    full_auth_url = f"{auth_url}{separator}state={state}"
+
+    # For HTTPS redirect URIs (required by Schwab), the automatic callback
+    # won't work on localhost.  Show the auth link + a paste form instead
+    # of redirecting.  For HTTP redirect URIs, redirect directly.
+    if ruri.startswith("https://127.0.0.1") or ruri.startswith("https://localhost"):
+        return templates.TemplateResponse(
+            request, "_schwab_paste.html",
+            {"request": request, "auth_url": full_auth_url,
+             "state": state},
+        )
+    return RedirectResponse(full_auth_url, status_code=302)
+
+
+@app.post("/schwab/exchange")
+async def schwab_exchange(
+    request: Request,
+    redirect_url: str = Form(...),
+):
+    """Exchange a pasted Schwab redirect URL for tokens.  Used when Schwab's
+    HTTPS requirement prevents automatic callback on localhost."""
+    from urllib.parse import urlparse, parse_qs
+
+    try:
+        parsed = urlparse(redirect_url.strip())
+        query = parse_qs(parsed.query)
+        code = query.get("code", [None])[0]
+        state = query.get("state", [None])[0]
+
+        if not code:
+            return templates.TemplateResponse(
+                request, "_schwab_result.html",
+                {"request": request, "success": False,
+                 "message": "Could not find an authorization code in that URL. "
+                            "Copy the FULL URL from your browser address bar "
+                            "after Schwab redirects you."},
+            )
+        if not state:
+            return templates.TemplateResponse(
+                request, "_schwab_result.html",
+                {"request": request, "success": False,
+                 "message": "Could not find a state parameter in that URL."},
+            )
+
+        pending = load_pending_credentials(state)
+        if not pending:
+            return templates.TemplateResponse(
+                request, "_schwab_result.html",
+                {"request": request, "success": False,
+                 "message": "Session expired. Click 'Connect to Schwab' again."},
+            )
+
+        exchange_code_for_tokens(
+            pending["client_id"], pending["client_secret"],
+            pending["redirect_uri"], code,
+        )
+        return templates.TemplateResponse(
+            request, "_schwab_result.html",
+            {"request": request, "success": True,
+             "message": "Schwab connected! Access token will refresh automatically."},
+        )
+    except SchwabAuthError as exc:
+        return templates.TemplateResponse(
+            request, "_schwab_result.html",
+            {"request": request, "success": False,
+             "message": f"Token exchange failed: {exc}"},
+        )
+    except Exception as exc:
+        return templates.TemplateResponse(
+            request, "_schwab_result.html",
+            {"request": request, "success": False,
+             "message": f"Error: {exc}"},
+        )
 
 
 @app.get("/schwab/callback")

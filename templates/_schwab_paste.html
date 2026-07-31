@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Schwab Authorization</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f8fafc; color: #334155;
+      display: flex; align-items: center; justify-content: center;
+      min-height: 100vh; padding: 20px;
+    }
+    .card {
+      background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+      padding: 32px 40px; max-width: 560px; width: 100%;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    h2 { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+    p { font-size: 14px; color: #64748b; line-height: 1.6; margin-bottom: 12px; }
+    .step { font-weight: 600; color: #0f172a; }
+    a.btn {
+      display: inline-block; padding: 10px 24px; background: #0f172a;
+      color: #fff; border-radius: 8px; font-size: 14px; font-weight: 500;
+      text-decoration: none; margin: 8px 0 20px;
+    }
+    a.btn:hover { background: #1e293b; }
+    textarea {
+      width: 100%; padding: 10px 12px; border: 1px solid #cbd5e1;
+      border-radius: 8px; font-size: 12px; font-family: monospace;
+      resize: vertical;
+    }
+    button {
+      margin-top: 8px; padding: 10px 24px; background: #0f172a;
+      color: #fff; border: none; border-radius: 8px; font-size: 14px;
+      font-weight: 500; cursor: pointer;
+    }
+    button:hover { background: #1e293b; }
+    .divider {
+      display: flex; align-items: center; gap: 12px;
+      margin: 20px 0; color: #94a3b8; font-size: 12px;
+    }
+    .divider::before, .divider::after {
+      content: ''; flex: 1; height: 1px; background: #e2e8f0;
+    }
+    .result { margin-top: 16px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>Connect to Schwab</h2>
+
+    <p><span class="step">Step 1:</span> Open the authorization link below. Log into Schwab and grant access.</p>
+    <a class="btn" href="{{ auth_url }}" target="_blank" rel="noopener">
+      Open Schwab Authorization →
+    </a>
+
+    <p style="font-size: 12px; color: #94a3b8;">
+      After granting access, your browser will try to open
+      <code style="background:#f1f5f9;padding:1px 4px;border-radius:3px;">https://127.0.0.1</code>
+      — this will show an error page. That's expected.
+    </p>
+
+    <div class="divider">Step 2</div>
+
+    <p><span class="step">Copy</span> the FULL URL from your browser's address bar (it contains <code>?code=...</code>)
+       and paste it below.</p>
+
+    <form action="/schwab/exchange" method="POST">
+      <textarea name="redirect_url" rows="3"
+                placeholder="https://127.0.0.1/?code=...&session=...&state=..."></textarea>
+      <button type="submit">Exchange Code →</button>
+    </form>
+
+    <div class="result">
+      <a href="/setup" style="font-size: 13px; color: #64748b;">← Back to Setup</a>
+    </div>
+  </div>
+</body>
+</html>
