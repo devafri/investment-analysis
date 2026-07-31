@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 import duckdb
+import pytest
 import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
@@ -85,13 +86,28 @@ class TestFullFlow:
         """Ingest synthetic data, then verify it persists in DuckDB and
         the /screen page loads (even if thresholds filter the test company
         out, the page itself must render without error)."""
+        import time
+
         make_ttm_company_data(tmp_path)
 
-        # POST /ingest
+        # POST /ingest — launches a background thread, returns progress bar
         resp = client.post("/ingest", data={"data_dir": str(tmp_path)})
         assert resp.status_code == 200
 
-        # Verify persistence: reopen the DB and confirm the data is there
+        # Poll /ingest/progress the same way an HTMX client would,
+        # waiting for the background thread to finish.  When complete the
+        # template renders "✓ Ingest complete" and stops polling
+        # (hx-trigger="none").
+        for _ in range(50):  # max ~5 seconds
+            resp = client.get("/ingest/progress")
+            assert resp.status_code == 200
+            if "Ingest complete" in resp.text:
+                break
+            time.sleep(0.1)
+        else:
+            pytest.fail("Ingest did not complete within 5 seconds")
+
+        # Now it's safe to assert on the persisted data.
         import duckdb, core.paths
         con = duckdb.connect(str(core.paths.DB_PATH))
         count = con.execute(
@@ -103,17 +119,27 @@ class TestFullFlow:
         # GET /screen — page must render without crashing
         resp = client.get("/screen")
         assert resp.status_code == 200
-        html = resp.text
         # Data was ingested — the page should not show the "no cached data" error
         assert "No cached screening data is available yet" not in resp.text
 
     def test_ingest_shows_error_on_invalid_dir(self, client, tmp_path, mock_network):
         """Ingesting a directory with no sub.txt/num.txt should show error."""
+        import time
+
         empty_dir = tmp_path / "empty"
         empty_dir.mkdir()
         resp = client.post("/ingest", data={"data_dir": str(empty_dir)})
         assert resp.status_code == 200
-        assert "ERROR" in resp.text.upper() or "error" in resp.text.lower()
+
+        # The error is set by the background thread — poll until complete
+        for _ in range(50):
+            resp = client.get("/ingest/progress")
+            assert resp.status_code == 200
+            if "Ingest complete" in resp.text or "Ingest failed" in resp.text:
+                break
+            time.sleep(0.1)
+
+        assert "error" in resp.text.lower()
 
 
 # ---------------------------------------------------------------------------

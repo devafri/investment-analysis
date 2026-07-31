@@ -273,6 +273,157 @@ class TestDebtFreeCompanyRatios:
         row = ratios.iloc[0]
         assert row["DebtToEquity"] == 0.0
 
+    def test_interest_coverage_nan_when_debt_but_no_interest_tag(
+        self, tmp_path,
+    ):
+        """If TotalDebt is positive but InterestExpense is missing, the
+        XBRL tag likely wasn't mapped — InterestCoverage should be NaN,
+        not inf, so the company is excluded from the quality screen."""
+        import math
+        adsh = "0000012345-24-000001"
+        write_sub_txt(tmp_path / "sub.txt", [
+            {"adsh": adsh, "cik": "12345", "name": "HAS DEBT NO INT", "sic": "7370",
+             "form": "10-K", "period": "20231231", "fy": "2023", "fp": "FY",
+             "filed": "20240215"},
+        ])
+        num_rows = []
+        def add(tag, qtrs, val):
+            num_rows.append({"adsh": adsh, "tag": tag, "version": "us-gaap/2023",
+                             "coreg": "", "ddate": "20231231", "qtrs": qtrs,
+                             "uom": "USD", "value": val, "footnote": ""})
+        # Flow
+        for tag, val in [("Revenues", "1000000000"), ("OperatingIncomeLoss", "150000000"),
+                         ("NetIncomeLoss", "100000000")]:
+            add(tag, "4", val)
+        # Balance sheet — HAS debt, but NO InterestExpense tag
+        for tag, val in [("Assets", "2000000000"), ("AssetsCurrent", "500000000"),
+                         ("LiabilitiesCurrent", "300000000"),
+                         ("CashAndCashEquivalentsAtCarryingValue", "100000000"),
+                         ("PropertyPlantAndEquipmentNet", "800000000"),
+                         ("StockholdersEquity", "1000000000"),
+                         ("LongTermDebtNoncurrent", "400000000"),   # HAS debt
+                         ("CommonStockSharesOutstanding", "50000000")]:
+            add(tag, "0", val)
+        write_num_txt(tmp_path / "num.txt", num_rows)
+
+        _, _, ttm, ratios = run_pipeline(str(tmp_path))
+        row = ratios.iloc[0]
+        # Has debt → InterestCoverage should NOT be inf
+        assert row["TotalDebt"] > 0, "Test setup: company should have debt"
+        assert not math.isinf(row["InterestCoverage"]), (
+            "InterestCoverage should NOT be inf when TotalDebt > 0 but "
+            "InterestExpense is missing (probable tag-mapping miss)"
+        )
+        assert row["InterestCoverage"] != row["InterestCoverage"], (
+            "InterestCoverage should be NaN"
+        )
+
+
+# ---------------------------------------------------------------------------
+# 8b. CFO/NI sign guard
+# ---------------------------------------------------------------------------
+
+class TestCFOToNISignGuard:
+    def test_cfo_to_ni_nan_when_ni_negative(self, tmp_path):
+        """CFO/NI should be NaN when NetIncomeLoss ≤ 0 (no false positive
+        from two negatives)."""
+        adsh = "0000012345-24-000001"
+        write_sub_txt(tmp_path / "sub.txt", [
+            {"adsh": adsh, "cik": "12345", "name": "LOSS CO", "sic": "7370",
+             "form": "10-K", "period": "20231231", "fy": "2023", "fp": "FY",
+             "filed": "20240215"},
+        ])
+        num_rows = []
+        def add(tag, qtrs, val):
+            num_rows.append({"adsh": adsh, "tag": tag, "version": "us-gaap/2023",
+                             "coreg": "", "ddate": "20231231", "qtrs": qtrs,
+                             "uom": "USD", "value": val, "footnote": ""})
+        for tag, val in [("Revenues", "500000000"), ("OperatingIncomeLoss", "-20000000"),
+                         ("NetIncomeLoss", "-50000000"),   # NEGATIVE
+                         ("InterestExpense", "5000000"),
+                         ("NetCashProvidedByUsedInOperatingActivities", "-40000000")]:  # also negative
+            add(tag, "4", val)
+        for tag, val in [("Assets", "1000000000"), ("AssetsCurrent", "200000000"),
+                         ("LiabilitiesCurrent", "150000000"),
+                         ("PropertyPlantAndEquipmentNet", "400000000"),
+                         ("StockholdersEquity", "500000000"),
+                         ("CommonStockSharesOutstanding", "25000000")]:
+            add(tag, "0", val)
+        write_num_txt(tmp_path / "num.txt", num_rows)
+
+        _, _, ttm, ratios = run_pipeline(str(tmp_path))
+        row = ratios.iloc[0]
+        assert row["NetIncomeLoss"] < 0
+        assert row["NetCashProvidedByUsedInOperatingActivities"] < 0
+        # Both negative would produce a positive ratio (~0.8) — we null that out
+        assert row["CFO_to_NI"] != row["CFO_to_NI"], (
+            "CFO_to_NI should be NaN when NetIncomeLoss ≤ 0"
+        )
+
+    def test_cfo_to_ni_computed_when_ni_positive(self, ttm_data_dir):
+        """CFO/NI should be a normal computed value when NI > 0."""
+        _, _, ttm, ratios = run_pipeline(str(ttm_data_dir))
+        row = ratios.iloc[0]
+        assert row["NetIncomeLoss"] > 0
+        assert row["CFO_to_NI"] == row["CFO_to_NI"], (
+            "CFO_to_NI should be computed when NetIncomeLoss > 0"
+        )
+        assert row["CFO_to_NI"] > 0
+
+
+# ---------------------------------------------------------------------------
+# 8c. ROIC excess-cash adjustment
+# ---------------------------------------------------------------------------
+
+class TestROICExcessCashAdj:
+    def test_roic_excess_cash_adj_exists(self, ttm_data_dir):
+        """ROIC_ExcessCashAdj column should be present and different from
+        ROIC when cash is material."""
+        _, _, ttm, ratios = run_pipeline(str(ttm_data_dir))
+        assert "ROIC_ExcessCashAdj" in ratios.columns
+
+    def test_roic_excess_cash_adj_greater_than_roic(self, tmp_path):
+        """With significant cash, the cash-adjusted ROIC should be higher
+        because the denominator excludes cash."""
+        adsh = "0000012345-24-000001"
+        write_sub_txt(tmp_path / "sub.txt", [
+            {"adsh": adsh, "cik": "12345", "name": "CASH RICH CO", "sic": "7370",
+             "form": "10-K", "period": "20231231", "fy": "2023", "fp": "FY",
+             "filed": "20240215"},
+        ])
+        num_rows = []
+        def add(tag, qtrs, val):
+            num_rows.append({"adsh": adsh, "tag": tag, "version": "us-gaap/2023",
+                             "coreg": "", "ddate": "20231231", "qtrs": qtrs,
+                             "uom": "USD", "value": val, "footnote": ""})
+        # Flow
+        for tag, val in [("Revenues", "1000000000"), ("OperatingIncomeLoss", "150000000"),
+                         ("NetIncomeLoss", "100000000"), ("InterestExpense", "5000000"),
+                         ("NetCashProvidedByUsedInOperatingActivities", "120000000"),
+                         ("PaymentsToAcquirePropertyPlantAndEquipment", "30000000")]:
+            add(tag, "4", val)
+        # Balance sheet — large cash pile
+        for tag, val in [("Assets", "3000000000"), ("AssetsCurrent", "800000000"),
+                         ("LiabilitiesCurrent", "300000000"),
+                         ("CashAndCashEquivalentsAtCarryingValue", "500000000"),  # 500M cash
+                         ("PropertyPlantAndEquipmentNet", "800000000"),
+                         ("StockholdersEquity", "1500000000"),
+                         ("LongTermDebtNoncurrent", "400000000"),
+                         ("CommonStockSharesOutstanding", "50000000")]:
+            add(tag, "0", val)
+        write_num_txt(tmp_path / "num.txt", num_rows)
+
+        _, _, ttm, ratios = run_pipeline(str(tmp_path))
+        row = ratios.iloc[0]
+        # InvestedCapital = NWC + PPE = (800M-300M) + 800M = 1300M
+        # ROIC = 150M / 1300M ≈ 0.115
+        assert row["ROIC"] > 0
+        # ROIC_ExcessCashAdj = 150M / (1300M - 500M) = 150M / 800M ≈ 0.188
+        assert row["ROIC_ExcessCashAdj"] > row["ROIC"], (
+            f"ROIC_ExcessCashAdj ({row['ROIC_ExcessCashAdj']:.4f}) should be "
+            f"greater than ROIC ({row['ROIC']:.4f}) when cash is material"
+        )
+
 
 # ---------------------------------------------------------------------------
 # 9. Accumulation dedup

@@ -153,8 +153,9 @@ def _run_ingest(data_dir: str, filter_major_exchanges_at_ingest: str) -> None:
                 # "Notes Data Sets"), ingest qualitative footnote text blocks.
                 try:
                     notes_count = ingest_notes_txt(con, str(source_path))
-                except Exception:
+                except Exception as exc:
                     notes_count = 0  # notes are optional — never fail an ingest
+                    print(f"[notes] Optional notes ingest skipped: {exc}")
 
                 _update_ingest_progress(
                     source_name=source_path.name, filings=len(per_filing),
@@ -182,8 +183,8 @@ def _run_ingest(data_dir: str, filter_major_exchanges_at_ingest: str) -> None:
                         f"Insider ingest: {new_rows:,} new trades classified "
                         f"and stored in insider_trades."
                     )
-        except Exception:
-            pass  # insider data is optional
+        except Exception as exc:
+            print(f"[insider] Optional insider ingest skipped: {exc}")
 
         history = sec_screen.load_fundamentals_history(con)
         if history.empty:
@@ -842,10 +843,12 @@ async def watchlist_toggle(cik: str):
     on_watchlist = result.get("on_watchlist", False)
     star_class = "btn-star--on" if on_watchlist else "btn-star--off"
     title = "Remove from watchlist" if on_watchlist else "Add to watchlist"
+    pressed = "true" if on_watchlist else "false"
     return HTMLResponse(
         f'<button class="btn-star {star_class}" '
         f'hx-post="/watchlist/toggle/{cik}" hx-swap="outerHTML" '
-        f'title="{title}">★</button>'
+        f'title="{title}" aria-pressed="{pressed}" '
+        f'aria-label="{title}">★</button>'
     )
 
 

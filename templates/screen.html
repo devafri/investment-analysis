@@ -32,12 +32,15 @@
           {% set raw_val = thresholds[name] %}
           {% set display_val = (raw_val * 100) if suffix == '%' else raw_val %}
           <div>
-            <label class="flex items-center justify-between text-[13px] font-medium text-surface-700 mb-1">
+            <label class="flex items-center justify-between text-[13px] font-medium text-surface-700 mb-1"
+                   for="{{ name }}">
               <span>{{ label }}</span>
               <span id="{{ name }}-value" class="font-mono text-sky-700 text-xs">{{ display_val | round(1) }}{{ suffix }}</span>
             </label>
-            <input type="range" min="{{ lo }}" max="{{ hi }}" step="{{ step }}"
+            <input type="range" id="{{ name }}" min="{{ lo }}" max="{{ hi }}" step="{{ step }}"
                    value="{{ display_val }}" name="{{ name }}"
+                   aria-valuemin="{{ lo }}" aria-valuemax="{{ hi }}"
+                   aria-valuenow="{{ display_val }}"
                    oninput="document.getElementById('{{ name }}-value').textContent = parseFloat(this.value).toFixed({{ 1 if step < 1 else 0 }}) + '{{ suffix }}'" />
           </div>
           {% endfor %}
@@ -58,12 +61,15 @@
           {% for name, label, lo, hi, step in val_sliders %}
           {% set raw_val = thresholds[name] %}
           <div>
-            <label class="flex items-center justify-between text-[13px] font-medium text-surface-700 mb-1">
+            <label class="flex items-center justify-between text-[13px] font-medium text-surface-700 mb-1"
+                   for="{{ name }}">
               <span>{{ label }}</span>
               <span id="{{ name }}-value" class="font-mono text-sky-700 text-xs">{{ (raw_val * 100) | round(1) }}%</span>
             </label>
-            <input type="range" min="{{ lo }}" max="{{ hi }}" step="{{ step }}"
+            <input type="range" id="{{ name }}" min="{{ lo }}" max="{{ hi }}" step="{{ step }}"
                    value="{{ raw_val * 100 }}" name="{{ name }}"
+                   aria-valuemin="{{ lo }}" aria-valuemax="{{ hi }}"
+                   aria-valuenow="{{ (raw_val * 100) | round(1) }}"
                    oninput="document.getElementById('{{ name }}-value').textContent = parseFloat(this.value).toFixed(1) + '%'; checkDcfParams()" />
           </div>
           {% endfor %}
@@ -76,12 +82,15 @@
           </div>
 
           <div>
-            <label class="flex items-center justify-between text-[13px] font-medium text-surface-700 mb-1">
+            <label class="flex items-center justify-between text-[13px] font-medium text-surface-700 mb-1"
+                   for="projection_years">
               <span>Projection Years</span>
               <span id="projection-years-value" class="font-mono text-sky-700 text-xs">{{ thresholds.projection_years }}</span>
             </label>
-            <input type="range" min="1" max="20" step="1"
+            <input type="range" id="projection_years" min="1" max="20" step="1"
                    value="{{ thresholds.projection_years }}" name="projection_years"
+                   aria-valuemin="1" aria-valuemax="20"
+                   aria-valuenow="{{ thresholds.projection_years }}"
                    oninput="document.getElementById('projection-years-value').textContent = this.value" />
           </div>
         </div>
@@ -95,17 +104,26 @@
         <div class="space-y-2">
           <label class="filter-toggle">
             <input type="hidden" name="require_positive_ni" value="0" />
-            <input type="checkbox" name="require_positive_ni" value="on" {% if thresholds.require_positive_ni %}checked{% endif %} />
+            <input type="checkbox" name="require_positive_ni" value="on"
+                   role="switch"
+                   aria-checked="{{ 'true' if thresholds.require_positive_ni else 'false' }}"
+                   {% if thresholds.require_positive_ni %}checked{% endif %} />
             <span>Require positive net income</span>
           </label>
           <label class="filter-toggle">
             <input type="hidden" name="major_exchanges_only" value="0" />
-            <input type="checkbox" name="major_exchanges_only" value="on" {% if thresholds.major_exchanges_only %}checked{% endif %} />
+            <input type="checkbox" name="major_exchanges_only" value="on"
+                   role="switch"
+                   aria-checked="{{ 'true' if thresholds.major_exchanges_only else 'false' }}"
+                   {% if thresholds.major_exchanges_only %}checked{% endif %} />
             <span>NASDAQ / NYSE only</span>
           </label>
           <label class="filter-toggle">
             <input type="hidden" name="exclude_financials" value="0" />
-            <input type="checkbox" name="exclude_financials" value="on" {% if thresholds.exclude_financials %}checked{% endif %} />
+            <input type="checkbox" name="exclude_financials" value="on"
+                   role="switch"
+                   aria-checked="{{ 'true' if thresholds.exclude_financials else 'false' }}"
+                   {% if thresholds.exclude_financials %}checked{% endif %} />
             <span>Exclude financials (SIC 6000–6799)</span>
           </label>
         </div>
@@ -128,6 +146,7 @@
            current page.  Includes the slider form so the current filter
            thresholds are preserved.  Debounced at 250ms. #}
         <input type="search" id="company-search" name="search"
+               aria-label="Filter companies by ticker or name"
                placeholder="Filter by ticker or name…"
                value="{{ request.query_params.get('search', '') }}"
                class="input-text max-w-[220px] text-xs py-1.5"

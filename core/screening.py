@@ -80,22 +80,35 @@ def base_query_string(params: Dict[str, Any]) -> str:
 # seconds.
 import threading as _threading
 _enriched_cache: Optional[pd.DataFrame] = None
-_cache_row_count: int = -1
+_cache_fingerprint: str = ""
 _cache_lock = _threading.Lock()
 
 
 def _invalidate_cache() -> None:
-    global _enriched_cache, _cache_row_count
+    global _enriched_cache, _cache_fingerprint
     with _cache_lock:
         _enriched_cache = None
-        _cache_row_count = -1
+        _cache_fingerprint = ""
+
+
+def _get_db_fingerprint(con) -> str:
+    """Return a stable fingerprint of the fundamentals_history table.
+
+    Uses COUNT(*) + MAX(filed) + MAX(period) so the cache invalidates on
+    same-row-count updates (e.g. a re-ingest that replaces overlapping
+    quarters) as well as on row additions."""
+    row = con.execute(
+        "SELECT COUNT(*), COALESCE(MAX(filed), ''), COALESCE(MAX(period), '') "
+        "FROM fundamentals_history"
+    ).fetchone()
+    return f"{row[0]}|{row[1]}|{row[2]}"
 
 
 def load_cached_ratios() -> pd.DataFrame:
     """Load fundamentals_history, compute TTM, ratios, growth, and F-Score.
     Returns a fully enriched DataFrame ready for screening.  Cached until
     fundamentals_history changes."""
-    global _enriched_cache, _cache_row_count
+    global _enriched_cache, _cache_fingerprint
 
     require_pipeline()
     con = get_db_connection()
@@ -105,13 +118,12 @@ def load_cached_ratios() -> pd.DataFrame:
         ).fetchone()[0] == 0:
             raise FileNotFoundError("No cached screening data is available yet. Please ingest a data directory first.")
 
-        # Fast cache check — just count rows, don't load all data if unchanged
-        row_count = con.execute("SELECT COUNT(*) FROM fundamentals_history").fetchone()[0]
-        if row_count == 0:
+        if con.execute("SELECT COUNT(*) FROM fundamentals_history").fetchone()[0] == 0:
             raise FileNotFoundError("No cached screening data is available yet. Please ingest a data directory first.")
 
+        fingerprint = _get_db_fingerprint(con)
         with _cache_lock:
-            if _enriched_cache is not None and _cache_row_count == row_count:
+            if _enriched_cache is not None and _cache_fingerprint == fingerprint:
                 return _enriched_cache.copy()
 
         history = sec_screen.load_fundamentals_history(con)
@@ -129,7 +141,7 @@ def load_cached_ratios() -> pd.DataFrame:
 
         with _cache_lock:
             _enriched_cache = ttm.copy()
-            _cache_row_count = row_count
+            _cache_fingerprint = fingerprint
         return ttm
     finally:
         con.close()

@@ -63,6 +63,7 @@ import os
 import sys
 from typing import Optional, Set
 import duckdb
+import numpy as np
 import pandas as pd
 
 from core.valuation import safe_div as _safe_div
@@ -225,9 +226,9 @@ def _resolve_data_path(data_dir: str) -> str:
     """
     resolved = os.path.abspath(os.path.expanduser(data_dir))
     # Reject paths containing characters that could break out of the string
-    # literal in read_csv('...') — single quotes, backslashes (on non-Windows),
-    # or null bytes.
-    dangerous = {"\x00"}
+    # literal in read_csv('...') — single quotes would terminate the SQL
+    # string early, and null bytes are never valid in paths.
+    dangerous = {"'", "\x00"}
     if any(c in resolved for c in dangerous):
         raise ValueError(
             f"Data directory path contains invalid characters: {resolved!r}"
@@ -706,6 +707,18 @@ def compute_ratios(df: pd.DataFrame) -> pd.DataFrame:
     df["InvestedCapital"] = df["NWC"] + df["PropertyPlantAndEquipmentNet"]
     df["ROIC"] = df["OperatingIncomeLoss"] / df["InvestedCapital"]
 
+    # Excess-cash-adjusted ROIC — Greenblatt's canonical adjustment subtracts
+    # cash from invested capital (a cash-heavy balance sheet shouldn't
+    # penalise the ROIC denominator).  Simple approach: subtract ALL of
+    # CashAndCashEquivalents.  Kept as a separate column so the existing
+    # ``ROIC`` column and all UI/screen defaults remain unchanged.
+    ic_adj = df["InvestedCapital"] - df["CashAndCashEquivalents"].fillna(0)
+    df["ROIC_ExcessCashAdj"] = np.where(
+        ic_adj > 0,
+        df["OperatingIncomeLoss"] / ic_adj,
+        np.nan,
+    )
+
     # --- Profitability ---
     df["GrossProfit"] = df["Revenues"] - df["CostOfRevenue"]
     df["GrossMargin"] = df["GrossProfit"] / df["Revenues"]
@@ -716,21 +729,34 @@ def compute_ratios(df: pd.DataFrame) -> pd.DataFrame:
 
     # --- Liquidity & solvency ---
     df["CurrentRatio"] = df["AssetsCurrent"] / df["LiabilitiesCurrent"]
-    # TotalDebt/InterestExpense being NaN or 0 usually means the filer has no
-    # debt (and therefore never tags InterestExpense at all), not that the
-    # data is missing/bad. Treat that as "no leverage" rather than letting a
-    # NaN comparison in apply_quality_screen silently drop debt-free
-    # companies -- exactly the kind of name a value screen should surface.
     df["DebtToEquity"] = (df["TotalDebt"].fillna(0) / df["StockholdersEquity"])
+
+    # InterestCoverage: set to inf only when the filer is genuinely debt-free
+    # (TotalDebt is 0 or NaN).  If InterestExpense is missing but TotalDebt
+    # is positive, the XBRL tag likely wasn't mapped — leave NaN so the
+    # quality screen excludes the company rather than giving it a free pass.
     df["InterestCoverage"] = df["OperatingIncomeLoss"] / df["InterestExpense"].replace(0, pd.NA)
-    df.loc[df["InterestExpense"].isna() | (df["InterestExpense"] == 0), "InterestCoverage"] = float("inf")
+    genuinely_debt_free = (
+        df["InterestExpense"].isna() | (df["InterestExpense"] == 0)
+    ) & (
+        df["TotalDebt"].isna() | (df["TotalDebt"] == 0)
+    )
+    df.loc[genuinely_debt_free, "InterestCoverage"] = float("inf")
 
     # --- Earnings quality (forensic) ---
     # Negative AccrualRatio (CFO > NI) is generally a positive quality signal;
     # persistently large positive values flag aggressive accrual accounting.
     df["FCF"] = df["NetCashProvidedByUsedInOperatingActivities"] - df["CapitalExpenditures"].fillna(0)
     df["AccrualRatio"] = (df["NetIncomeLoss"] - df["NetCashProvidedByUsedInOperatingActivities"]) / df["Assets"]
-    df["CFO_to_NI"] = df["NetCashProvidedByUsedInOperatingActivities"] / df["NetIncomeLoss"]
+
+    # CFO/NI: null out when NetIncomeLoss is zero or negative — a positive
+    # ratio from two negatives (e.g. CFO = −90M, NI = −100M → 0.9) is a
+    # false "good earnings quality" signal.
+    df["CFO_to_NI"] = np.where(
+        df["NetIncomeLoss"].notna() & (df["NetIncomeLoss"] > 0),
+        df["NetCashProvidedByUsedInOperatingActivities"] / df["NetIncomeLoss"],
+        np.nan,
+    )
 
     return df
 
