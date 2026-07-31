@@ -739,6 +739,7 @@ async def insider_page(request: Request) -> HTMLResponse:
                 request, "insider.html",
                 {"request": request, "summary": None, "top_companies": [],
                  "trades": [], "schwab_status": get_connection_status(),
+                 "search": "", "trade_type": "", "code": "", "page": 1,
                  "error": "No insider trading data has been ingested yet. "
                           "Place SEC EDGAR insider ZIP files (containing "
                           "NONDERIV_TRANS.txt, SUBMISSION.txt, "
@@ -756,7 +757,8 @@ async def insider_page(request: Request) -> HTMLResponse:
             {"request": request, "summary": summary,
              "top_companies": top.to_dict(orient="records"),
              "trades": trades, "schwab_status": get_connection_status(),
-             "error": None, "search": "", "trade_type": "", "code": ""},
+             "error": None, "search": "", "trade_type": "", "code": "",
+             "page": 1},
         )
     except Exception as exc:
         return templates.TemplateResponse(
