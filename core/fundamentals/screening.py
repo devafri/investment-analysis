@@ -8,10 +8,10 @@ from urllib.parse import urlencode
 
 import pandas as pd
 
-from core.data_ingestion import get_db_connection
-from core.exchange_filter import filter_to_major_exchanges
+from core.fundamentals.data_ingestion import get_db_connection
+from core.fundamentals.exchange_filter import filter_to_major_exchanges
 from core.types import Pagination, RowContext, ScreenInfo, ThresholdConfig
-from core.valuation import apply_valuation, compute_margin_of_safety
+from core.fundamentals.valuation import apply_valuation, compute_margin_of_safety
 from providers.market_data import join_market_data, attach_tickers
 from providers.pipeline_imports import sec_screen, require_pipeline
 

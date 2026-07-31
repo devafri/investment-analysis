@@ -19,7 +19,7 @@ import zipfile
 from pathlib import Path
 
 import duckdb
-import core.sec_value_screen as sec_screen
+import core.fundamentals.sec_loader as sec_screen
 
 
 def resolve_dir(data_dir: str) -> Path:

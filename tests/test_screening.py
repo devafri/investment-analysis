@@ -3,7 +3,7 @@
 import pandas as pd
 import pytest
 
-from core.screening import (
+from core.fundamentals.screening import (
     parse_thresholds,
     base_query_string,
     build_query_string,
@@ -143,13 +143,13 @@ class TestPaginateFrame:
 class TestFinancialExclusion:
     def test_exclude_financials_removes_sic_60xx(self):
         """Financial sector toggle should remove SIC 6000-6799."""
-        from core.screening import DEFAULT_THRESHOLDS
+        from core.fundamentals.screening import DEFAULT_THRESHOLDS
         assert "exclude_financials" in DEFAULT_THRESHOLDS
         assert DEFAULT_THRESHOLDS["exclude_financials"] is False
 
     def test_exclude_financials_is_boolean_key(self):
         """exclude_financials should be parsed as a boolean."""
-        from core.screening import BOOLEAN_THRESHOLD_KEYS
+        from core.fundamentals.screening import BOOLEAN_THRESHOLD_KEYS
         assert "exclude_financials" in BOOLEAN_THRESHOLD_KEYS
 
 
@@ -161,8 +161,8 @@ class TestMarketPricePersistence:
     def test_save_and_hydrate(self, tmp_path):
         """Save prices to DB, then hydrate them back."""
         import duckdb
-        from core.screening import save_market_prices_to_db, _hydrate_prices_from_db
-        from core.data_ingestion import get_db_connection
+        from core.fundamentals.screening import save_market_prices_to_db, _hydrate_prices_from_db
+        from core.fundamentals.data_ingestion import get_db_connection
 
         # Create a test DataFrame with price data
         df = pd.DataFrame({

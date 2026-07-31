@@ -20,7 +20,7 @@ from typing import List, Optional, Set
 import duckdb
 import pandas as pd
 
-from core.data_ingestion import get_db_connection
+from core.fundamentals.data_ingestion import get_db_connection
 
 # ---------------------------------------------------------------------------
 # High-value footnote tags — qualitative disclosures that matter for

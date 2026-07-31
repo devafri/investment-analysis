@@ -8,7 +8,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-import core.insider_analysis as ia
+import core.insider.insider_analysis as ia
 
 
 # ---------------------------------------------------------------------------

@@ -532,7 +532,7 @@ def debt_free_dir(tmp_path: Path) -> Path:
 def load_synthetic(ttm_data_dir: Path):
     """Returns (con, history_df) after running the full pipeline on the
     standard TTM synthetic dataset."""
-    import core.sec_value_screen as sec_screen
+    import core.fundamentals.sec_loader as sec_screen
     con = duckdb.connect()
     sec_screen.load_data_filtered(con, str(ttm_data_dir),
                                   form_types={"10-K", "10-Q"})

@@ -7,7 +7,7 @@ from unittest.mock import patch, MagicMock
 import pandas as pd
 import pytest
 
-from core.exchange_filter import (
+from core.fundamentals.exchange_filter import (
     is_major_exchange,
     filter_to_major_exchanges,
     load_exchange_map,
@@ -20,8 +20,8 @@ from core.exchange_filter import (
 # ---------------------------------------------------------------------------
 
 class TestCacheFreshness:
-    @patch("core.exchange_filter.get_cik_exchange_map")
-    @patch("core.exchange_filter.EXCHANGE_CACHE_PATH")
+    @patch("core.fundamentals.exchange_filter.get_cik_exchange_map")
+    @patch("core.fundamentals.exchange_filter.EXCHANGE_CACHE_PATH")
     def test_cache_hit_avoids_refetch(self, mock_path, mock_get_map):
         """Calling load_exchange_map twice within cache TTL only fetches once."""
         # Must have >= MIN_EXCHANGE_ENTRIES (100) entries to pass cache validation
@@ -62,7 +62,7 @@ class TestGracefulDegradation:
             "cik": ["320193", "999999"],
             "name": ["Apple", "Unknown"],
         })
-        with patch("core.exchange_filter.load_exchange_map") as mock_load:
+        with patch("core.fundamentals.exchange_filter.load_exchange_map") as mock_load:
             mock_load.return_value = ({}, "Simulated network failure")
             result, warning = filter_to_major_exchanges(df)
             # DataFrame should be unchanged (both rows present)

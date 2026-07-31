@@ -5,7 +5,7 @@ import math
 import pandas as pd
 import pytest
 
-from core.valuation import (
+from core.fundamentals.valuation import (
     compute_graham_number,
     compute_dcf_intrinsic_value_per_share,
     compute_margin_of_safety,

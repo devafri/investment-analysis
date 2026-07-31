@@ -27,7 +27,7 @@ def tmp_db(monkeypatch, tmp_path):
     real cache/. This is autouse so even a bare `client.get` that triggers
     import-time side-effects won't read, write, or delete real user data."""
     import core.paths
-    import core.data_ingestion
+    import core.fundamentals.data_ingestion as data_ingestion
 
     tmp_cache = tmp_path / "test_cache"
     tmp_cache.mkdir()
@@ -38,8 +38,8 @@ def tmp_db(monkeypatch, tmp_path):
     monkeypatch.setattr(core.paths, "MARKET_CACHE_PATH", tmp_cache / "market_data.json")
     monkeypatch.setattr(core.paths, "EXCHANGE_CACHE_PATH", tmp_cache / "exchange_map.json")
     monkeypatch.setattr(core.paths, "TICKER_CACHE_PATH", tmp_cache / "ticker_map.json")
-    monkeypatch.setattr(core.data_ingestion, "CACHE_DIR", tmp_cache)
-    monkeypatch.setattr(core.data_ingestion, "DB_PATH", tmp_db_path)
+    monkeypatch.setattr(data_ingestion, "CACHE_DIR", tmp_cache)
+    monkeypatch.setattr(data_ingestion, "DB_PATH", tmp_db_path)
     yield
 
 
@@ -59,7 +59,7 @@ def mock_network():
     with patch("providers.pipeline_imports.get_cik_ticker_map") as mock_ticker, \
          patch("providers.pipeline_imports.get_cik_exchange_map") as mock_exch, \
          patch("providers.pipeline_imports.fetch_price_data") as mock_price, \
-         patch("core.exchange_filter.get_cik_exchange_map") as mock_exch2, \
+         patch("core.fundamentals.exchange_filter.get_cik_exchange_map") as mock_exch2, \
          patch("providers.market_data.fetch_price_data") as mock_price2, \
          patch("providers.market_data.get_cik_ticker_map") as mock_ticker2:
         mock_ticker.return_value = {"12345": "TEST", "99999": "ZETA"}
@@ -352,8 +352,8 @@ class TestHealth:
 class TestPricePersistence:
     def test_market_prices_table_created_after_save(self):
         """save_market_prices_to_db should create the market_prices table."""
-        from core.screening import save_market_prices_to_db
-        from core.data_ingestion import get_db_connection
+        from core.fundamentals.screening import save_market_prices_to_db
+        from core.fundamentals.data_ingestion import get_db_connection
         import pandas as pd
 
         df = pd.DataFrame({

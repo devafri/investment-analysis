@@ -4,7 +4,7 @@ import duckdb
 import pandas as pd
 import pytest
 
-import core.sec_value_screen as sec_screen
+import core.fundamentals.sec_loader as sec_screen
 from tests.conftest import (
     write_sub_txt,
     write_num_txt,
@@ -667,7 +667,7 @@ class TestCoverPageShares:
     def test_valuation_uses_cover_page(self, cover_page_data_dir):
         """EPS/Graham/DCF should use the cover-page share count (52M), not the
         balance-sheet one (50M), when both are present."""
-        import core.valuation as valuation
+        import core.fundamentals.valuation as valuation
 
         con = duckdb.connect()
         sec_screen.load_data_filtered(con, str(cover_page_data_dir),
@@ -715,7 +715,7 @@ class TestCoverPageShares:
         """When EntityCommonStockSharesOutstanding is NOT present, valuation
         must fall back to the balance-sheet figure — this must not break
         filings that simply don't report the cover-page tag."""
-        import core.valuation as valuation
+        import core.fundamentals.valuation as valuation
 
         con = duckdb.connect()
         sec_screen.load_data_filtered(con, str(no_cover_page_data_dir),

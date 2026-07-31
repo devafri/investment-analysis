@@ -7,7 +7,7 @@ potentially worded differently) in five different files.
 """
 
 try:
-    import core.sec_value_screen as sec_screen
+    import core.fundamentals.sec_loader as sec_screen
     from providers.yfinance_provider import fetch_price_data, get_cik_ticker_map, get_cik_exchange_map
 except Exception as exc:  # pragma: no cover - depends on local environment
     sec_screen = None

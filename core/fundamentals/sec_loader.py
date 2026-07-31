@@ -66,7 +66,7 @@ import duckdb
 import numpy as np
 import pandas as pd
 
-from core.valuation import safe_div as _safe_div
+from core.fundamentals.valuation import safe_div as _safe_div
 
 
 # ---------------------------------------------------------------------------

@@ -4,8 +4,8 @@ import duckdb
 import pandas as pd
 import pytest
 
-from core.company_analysis import scan_footnotes_for_red_flags, _strip_html
-from core.notes_ingestion import ingest_notes_txt
+from core.fundamentals.company_analysis import scan_footnotes_for_red_flags, _strip_html
+from core.fundamentals.notes_ingestion import ingest_notes_txt
 from tests.conftest import write_sub_txt
 
 

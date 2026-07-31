@@ -18,9 +18,9 @@ from fastapi.templating import Jinja2Templates
 from core.paths import TEMPLATES_DIR, BASE_DIR
 from core.types import IngestState, RowContext
 from providers.pipeline_imports import sec_screen, require_pipeline
-from core.data_ingestion import resolve_data_sources, get_db_connection, list_available_data_files, clear_cached_data
-from core.exchange_filter import load_exchange_map, get_allowed_cik_set
-from core.screening import (
+from core.fundamentals.data_ingestion import resolve_data_sources, get_db_connection, list_available_data_files, clear_cached_data
+from core.fundamentals.exchange_filter import load_exchange_map, get_allowed_cik_set
+from core.fundamentals.screening import (
     PAGE_SIZE, parse_thresholds, build_query_string, base_query_string,
     load_cached_ratios, load_history_for_cik, screen_data_from_cache,
     paginate_frame, build_row_context, coerce_row_values,
@@ -33,10 +33,10 @@ from providers.schwab.auth import (
     get_connection_status, exchange_code_for_tokens, SchwabAuthError,
     build_authorization_url, save_pending_credentials, load_pending_credentials,
 )
-from core.valuation import compute_margin_of_safety
-from core.company_analysis import compute_red_flags, build_trend_table, scan_footnotes_for_red_flags
-from core.notes_ingestion import ingest_notes_txt, get_footnotes_for_cik, has_footnote_data
-import core.insider_analysis as insider
+from core.fundamentals.valuation import compute_margin_of_safety
+from core.fundamentals.company_analysis import compute_red_flags, build_trend_table, scan_footnotes_for_red_flags
+from core.fundamentals.notes_ingestion import ingest_notes_txt, get_footnotes_for_cik, has_footnote_data
+import core.insider.insider_analysis as insider
 import core.formatting as formatting
 import config
 
@@ -467,7 +467,7 @@ async def company_detail(request: Request, cik: str) -> HTMLResponse:
 
         # Hydrate persisted market prices for this single company so the
         # detail page shows valuation/market data without a live refresh.
-        from core.screening import _hydrate_prices_from_db
+        from core.fundamentals.screening import _hydrate_prices_from_db
         single_df = _hydrate_prices_from_db(pd.DataFrame([match]))
         match = single_df.iloc[0]
 
