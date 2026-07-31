@@ -16,9 +16,11 @@
           <th>Company</th>
           <th>Insider</th>
           <th>Role</th>
-          <th>Direction</th>
+          <th>Dir</th>
           <th>Shares</th>
-          <th>Price</th>
+          <th>Trade $</th>
+          <th>Now $</th>
+          <th>Gain/Loss</th>
           <th>Classification</th>
         </tr>
       </thead>
@@ -44,6 +46,17 @@
           </td>
           <td class="font-mono tabular-nums text-xs text-surface-700">{{ t.shares }}</td>
           <td class="font-mono tabular-nums text-xs text-surface-700">{{ t.price }}</td>
+          <td class="font-mono tabular-nums text-xs text-surface-500">
+            {% if t.current_price %}${{ "%.2f"|format(t.current_price) }}{% else %}—{% endif %}
+          </td>
+          <td class="font-mono tabular-nums text-xs
+              {% if t.gain_loss_pct is not none and t.gain_loss_pct > 0 %}text-positive-600 font-semibold
+              {% elif t.gain_loss_pct is not none and t.gain_loss_pct < 0 %}text-negative-600
+              {% else %}text-surface-400{% endif %}">
+            {% if t.gain_loss_pct is not none %}
+              {{ "%+.1f"|format(t.gain_loss_pct) }}%
+            {% else %}—{% endif %}
+          </td>
           <td>
             {% if t.trade_type == 'Opportunistic' %}
             <span class="text-xs text-negative-700 font-semibold"

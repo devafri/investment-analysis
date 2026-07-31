@@ -758,12 +758,15 @@ async def insider_page(request: Request) -> HTMLResponse:
             con, limit=50, major_exchanges_only=major_only,
         )
         trades = _format_insider_trade_rows(trades_df)
+        trades = insider.enrich_trades_with_prices(trades, con)
+        perf = insider.compute_performance_summary(trades)
 
         return templates.TemplateResponse(
             request, "insider.html",
             {"request": request, "summary": summary,
              "top_companies": top.to_dict(orient="records"),
-             "trades": trades, "schwab_status": get_connection_status(),
+             "trades": trades, "performance": perf,
+             "schwab_status": get_connection_status(),
              "error": None, "search": "", "trade_type": "", "code": "",
              "page": 1, "major_exchanges_only": major_only},
         )

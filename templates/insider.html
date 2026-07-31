@@ -90,6 +90,29 @@
     {# Trade search & results                                              #}
     {# =================================================================== #}
     <div class="space-y-4 min-w-0">
+      {# Performance summary — gain/loss by trade type #}
+      {% if performance is defined and performance.opp_buy.count > 0 %}
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {% for key, label in [
+          ('opp_buy', 'Opp Buys'),
+          ('opp_sell', 'Opp Sells'),
+          ('routine_buy', 'Routine Buys'),
+          ('routine_sell', 'Routine Sells'),
+        ] %}
+        {% set p = performance[key] %}
+        <div class="stat-card {{ 'border-l-2 border-l-positive-300' if 'buy' in key else 'border-l-2 border-l-negative-300' }}">
+          <div class="stat-card__label text-[11px]">{{ label }}</div>
+          <div class="stat-card__value text-sm {{ 'text-positive-600' if p.avg_gain_pct and p.avg_gain_pct > 0 else 'text-negative-600' if p.avg_gain_pct and p.avg_gain_pct < 0 else 'text-surface-500' }}">
+            {% if p.avg_gain_pct is not none %}
+              {{ "%+.1f"|format(p.avg_gain_pct) }}%
+            {% else %}—{% endif %}
+          </div>
+          <div class="text-[10px] text-surface-400">avg gain, {{ p.count }} trades</div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
       {# Filter bar #}
       <div class="card">
         <form id="insider-search-form"

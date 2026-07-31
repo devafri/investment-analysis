@@ -1027,3 +1027,104 @@ def get_top_companies(
         ORDER BY sort_metric DESC
         LIMIT ?
     """, params).fetchdf()
+
+
+# ===================================================================
+# 9. Price enrichment & gain/loss
+# ===================================================================
+
+
+def enrich_trades_with_prices(
+    trades: list, con, max_batch: int = 100,
+) -> list:
+    """Add current_price and gain_loss_pct to each trade dict.
+
+    Looks up prices from the persisted ``market_prices`` table first,
+    then attempts a Schwab batch fetch for any tickers still missing.
+    Trades without a ticker or price are left with ``None`` values.
+    """
+    if not trades:
+        return trades
+
+    # Collect unique tickers
+    tickers = list(set(
+        t.get("ticker") or "" for t in trades
+        if t.get("ticker")
+    ))
+    if not tickers:
+        return trades
+
+    # Phase 1: market_prices table (fast, already cached)
+    price_map: dict = {}
+    try:
+        placeholders = ", ".join(["?"] * len(tickers))
+        rows = con.execute(
+            f"SELECT ticker, price FROM market_prices "
+            f"WHERE ticker IN ({placeholders}) AND price IS NOT NULL",
+            tickers,
+        ).fetchall()
+        for ticker, price in rows:
+            if ticker and price:
+                price_map[str(ticker)] = float(price)
+    except Exception:
+        pass
+
+    # Phase 2: Schwab batch fetch for remaining tickers
+    missing = [t for t in tickers if t not in price_map]
+    if missing and len(missing) <= max_batch and len(missing) > 0:
+        try:
+            from providers.schwab.market_data import fetch_prices_batch
+            from providers.schwab.auth import SchwabAuthError
+            results = fetch_prices_batch(missing)
+            for ticker, data in results.items():
+                price = data.get("price")
+                if price:
+                    price_map[str(ticker)] = float(price)
+        except (ImportError, SchwabAuthError, Exception):
+            pass  # Schwab not available — partial results are fine
+
+    # Apply to trades
+    for t in trades:
+        tk = t.get("ticker") or ""
+        trade_price_raw = None
+        try:
+            trade_price_raw = float(str(t.get("price", "")).replace("$", "").replace(",", ""))
+        except (ValueError, TypeError):
+            pass
+
+        current_price = price_map.get(str(tk))
+        t["current_price"] = current_price
+
+        if current_price and trade_price_raw and trade_price_raw > 0:
+            gain_pct = (current_price / trade_price_raw) - 1
+            t["gain_loss_pct"] = round(gain_pct * 100, 1)
+        else:
+            t["gain_loss_pct"] = None
+
+    return trades
+
+
+def compute_performance_summary(trades: list) -> dict:
+    """Compute average gain/loss by trade type and direction from enriched
+    trade dicts (must already have gain_loss_pct populated)."""
+    groups = {"opp_buy": [], "opp_sell": [], "routine_buy": [], "routine_sell": []}
+    for t in trades:
+        gl = t.get("gain_loss_pct")
+        if gl is None:
+            continue
+        key = f"{'opp' if t.get('trade_type', '').lower() == 'opportunistic' else 'routine'}" \
+              f"_{'buy' if t.get('code', '').lower() == 'buy' else 'sell'}"
+        if key in groups:
+            groups[key].append(gl)
+
+    result = {}
+    for key, vals in groups.items():
+        if vals:
+            result[key] = {
+                "count": len(vals),
+                "avg_gain_pct": round(sum(vals) / len(vals), 1),
+                "median_gain_pct": round(sorted(vals)[len(vals)//2], 1),
+            }
+        else:
+            result[key] = {"count": 0, "avg_gain_pct": None, "median_gain_pct": None}
+    return result
