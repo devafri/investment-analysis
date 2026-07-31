@@ -1083,12 +1083,17 @@ def enrich_trades_with_prices(
         except (ImportError, SchwabAuthError, Exception):
             pass  # Schwab not available — partial results are fine
 
-    # Apply to trades
+    # Apply to trades — compute annualized gain/loss
+    from datetime import datetime as _dt
+    now = _dt.now()
+
     for t in trades:
         tk = t.get("ticker") or ""
         trade_price_raw = None
         try:
-            trade_price_raw = float(str(t.get("price", "")).replace("$", "").replace(",", ""))
+            trade_price_raw = float(
+                str(t.get("price", "")).replace("$", "").replace(",", "")
+            )
         except (ValueError, TypeError):
             pass
 
@@ -1096,10 +1101,28 @@ def enrich_trades_with_prices(
         t["current_price"] = current_price
 
         if current_price and trade_price_raw and trade_price_raw > 0:
-            gain_pct = (current_price / trade_price_raw) - 1
-            t["gain_loss_pct"] = round(gain_pct * 100, 1)
+            # Absolute return
+            total_return = (current_price / trade_price_raw) - 1
+
+            # Annualize using the trade date
+            trade_date_str = t.get("trade_date_raw", "")
+            try:
+                trade_dt = _dt.strptime(trade_date_str, "%Y-%m-%d")
+                years = (now - trade_dt).days / 365.25
+                if years > 0.02:  # at least ~1 week
+                    annualized = ((1 + total_return) ** (1.0 / years)) - 1
+                    t["gain_loss_pct"] = round(annualized * 100, 1)
+                    t["hold_years"] = round(years, 1)
+                else:
+                    # Too recent to annualize meaningfully
+                    t["gain_loss_pct"] = round(total_return * 100, 1)
+                    t["hold_years"] = 0.0
+            except (ValueError, TypeError):
+                t["gain_loss_pct"] = round(total_return * 100, 1)
+                t["hold_years"] = None
         else:
             t["gain_loss_pct"] = None
+            t["hold_years"] = None
 
     return trades
 

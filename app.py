@@ -876,8 +876,11 @@ def _format_insider_trade_rows(df: pd.DataFrame) -> list:
         trade_date = row.get("trans_date")
         if hasattr(trade_date, "strftime"):
             trade_date = trade_date.strftime("%b %d, %Y")
+        # Keep raw date for annualized gain/loss calculations
+        raw_date = row.get("trans_date")
         trades.append({
             "date": trade_date or "",
+            "trade_date_raw": str(raw_date)[:10] if hasattr(raw_date, "strftime") else "",
             "company_name": row.get("company_name") or "—",
             "ticker": row.get("issuer_trading_symbol") or "",
             "insider_name": row.get("rpt_owner_name") or "—",
