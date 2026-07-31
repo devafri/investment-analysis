@@ -17,9 +17,10 @@
     <div>
       <label class="block text-[13px] font-medium text-surface-700 mb-1.5" for="data_dir">Data folder or ZIP file</label>
       <input id="data_dir" name="data_dir" type="text" value="{{ data_dir }}"
-             class="input-text font-mono" placeholder="./data" />
+             class="input-text font-mono" placeholder="./data/quarterly_financials" />
       <p class="mt-1.5 text-[11px] text-surface-500">
-        A single ZIP, a folder containing one ZIP, or a folder containing several quarterly ZIPs — all of them will be ingested and accumulated in one go.
+        DERA quarterly ZIPs (containing sub.txt, num.txt, pre.txt). Insider data is
+        auto-detected from <code class="text-xs bg-surface-100 px-1 rounded">data/insider_trading</code>.
       </p>
     </div>
 
@@ -117,10 +118,10 @@
   </div>
 
   <div class="mt-3 rounded-lg border border-sky-100 bg-sky-50 px-4 py-3 text-[12px] text-sky-800 leading-relaxed">
-    <strong>Insider trading data</strong> is automatically detected and ingested from the same directory.
-    Place SEC EDGAR insider-transaction ZIP files (containing NONDERIV_TRANS.txt, SUBMISSION.txt,
-    REPORTINGOWNER.txt) alongside your quarterly data and they'll be classified as Routine vs
-    Opportunistic automatically.
+    <strong>Insider trading data</strong> is auto-detected from
+    <code class="text-xs bg-sky-100 px-1 rounded">data/insider_trading</code> (or the same
+    directory as quarterly data). Place SEC EDGAR Form 3/4/5 ZIP files (containing
+    NONDERIV_TRANS.txt, SUBMISSION.txt, REPORTINGOWNER.txt) there.
   </div>
 
   {# Ingest log #}

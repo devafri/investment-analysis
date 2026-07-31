@@ -6,6 +6,7 @@ HTTP requests to that logic and renders templates.
 
 import threading
 import time
+from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 import pandas as pd
@@ -167,24 +168,29 @@ def _run_ingest(data_dir: str, filter_major_exchanges_at_ingest: str) -> None:
         con.commit()
 
         # --- Insider trading ingestion (optional) ---
-        # If the data directory also contains SEC insider-transaction ZIPs
-        # (or unzipped insider data in subdirectories), ingest and classify
-        # them automatically.  Completely separate from fundamentals — a
-        # missing or broken insider ZIP never blocks the main ingest.
-        try:
-            insider_df = insider.load_and_process_data(
-                data_dir, start_year=2016, end_year=2026,
-            )
-            if not insider_df.empty:
-                classified = insider.classify_insiders(insider_df)
-                new_rows = insider.persist_insider_trades(con, classified)
-                if new_rows > 0:
-                    print(
-                        f"Insider ingest: {new_rows:,} new trades classified "
-                        f"and stored in insider_trades."
-                    )
-        except Exception as exc:
-            print(f"[insider] Optional insider ingest skipped: {exc}")
+        # Try the user's data_dir first, then fall back to the sibling
+        # data/insider_trading directory (they're separate SEC datasets).
+        # A missing or broken insider ZIP never blocks the main ingest.
+        insider_dirs = [data_dir]
+        sibling_insider = Path(data_dir).parent / "insider_trading"
+        if sibling_insider.is_dir():
+            insider_dirs.append(str(sibling_insider))
+        for insider_dir in insider_dirs:
+            try:
+                insider_df = insider.load_and_process_data(
+                    insider_dir, start_year=2016, end_year=2026,
+                )
+                if not insider_df.empty:
+                    classified = insider.classify_insiders(insider_df)
+                    new_rows = insider.persist_insider_trades(con, classified)
+                    if new_rows > 0:
+                        print(
+                            f"Insider ingest ({insider_dir}): {new_rows:,} "
+                            f"new trades classified and stored."
+                        )
+                        break  # found data, stop looking
+            except Exception as exc:
+                print(f"[insider] {insider_dir}: skipped ({exc})")
 
         history = sec_screen.load_fundamentals_history(con)
         if history.empty:
